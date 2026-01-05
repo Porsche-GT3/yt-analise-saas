@@ -16,320 +16,268 @@ st.set_page_config(page_title="Blueberry Finder AI", page_icon="🫐", layout="w
 # --- CSS "BLUEBERRY UNICORN THEME" 🦄🫐 ---
 st.markdown("""
     <style>
-    /* 1. FUNDO GERAL */
-    .stApp {
-        background: linear-gradient(135deg, #f3e7e9 0%, #e3eeff 100%, #e8dbfc 100%);
-        background-attachment: fixed;
-    }
+    .stApp { background: linear-gradient(135deg, #f3e7e9 0%, #e3eeff 100%, #e8dbfc 100%); background-attachment: fixed; }
     header[data-testid="stHeader"] { background: transparent; }
-
-    /* 2. TIPOGRAFIA */
     h1, h2, h3 { font-family: 'Inter', sans-serif; color: #3d3563 !important; font-weight: 700; }
     p, label, span, div, caption { color: #544a85 !important; }
-
-    /* 3. CARDS */
-    .gold-card {
-        background: rgba(255, 255, 255, 0.80); backdrop-filter: blur(15px);
-        border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px;
-        box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px;
-        transition: transform 0.3s ease;
-    }
+    
+    /* CARDS */
+    .gold-card { background: rgba(255, 255, 255, 0.80); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: transform 0.3s ease; }
     .gold-card:hover { transform: translateY(-5px); }
-
-    .gold-badge {
-        background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%);
-        color: white !important; padding: 6px 15px; border-radius: 20px;
-        font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px;
-    }
+    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px; }
     
-    /* 4. INPUTS E BOTÕES */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] {
-        background-color: rgba(255, 255, 255, 0.9) !important;
-        border: 2px solid #ddd6fe !important; color: #3d3563 !important;
-        border-radius: 18px !important;
-    }
-    div[data-testid="stFormSubmitButton"] button {
-        background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%);
-        color: #ffffff !important; font-weight: 700 !important; border: none;
-        padding: 14px 28px; border-radius: 50px; width: 100%;
-        box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
-    }
+    /* INPUTS */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] { background-color: rgba(255, 255, 255, 0.9) !important; border: 2px solid #ddd6fe !important; color: #3d3563 !important; border-radius: 18px !important; }
+    div[data-testid="stFormSubmitButton"] button { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); color: #ffffff !important; font-weight: 700 !important; border: none; padding: 14px 28px; border-radius: 50px; width: 100%; box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4); }
     
-    /* 5. TOPICOS EM ALTA (Radar) */
-    .trend-tag {
-        display: inline-block; background: #eaddff; color: #3d3563;
-        padding: 5px 12px; border-radius: 15px; margin: 3px; font-size: 12px; font-weight: 600;
-    }
+    /* TAGS DE TENDÊNCIA */
+    .trend-tag { display: inline-block; background: #eaddff; color: #3d3563; padding: 5px 12px; border-radius: 15px; margin: 3px; font-size: 12px; font-weight: 600; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNÇÕES DE BUSCA E RADAR ---
+# --- DICIONÁRIO MESTRE: 50 CATEGORIAS DARK (15 VARIAÇÕES) ---
+def get_nichos_dark():
+    return {
+        "🚀 GERAL (Top Trends)": None,
+        
+        # --- GRUPO 1: MISTÉRIO & MEDO (Alta Viralidade) ---
+        "🔪 True Crime (Investigação)": "true crime documentary|investigação criminal|serial killer|cold cases|crimes não solucionados|forensic files|murder mystery|interrogation footage|casos criminais|desaparecimentos|missing persons|criminal psychology|crime scene|detective stories|policia investigação",
+        "👻 Paranormal & Assustador": "ghost caught on camera|poltergeist video|scary stories|lendas urbanas|relatos sobrenaturais|haunted house|investigação paranormal|demon sighting|shadow people|terror real|skinwalker|creepy videos|medo real|espiritos filmados|paranormal activity",
+        "👽 Ufologia & Alienígenas": "ufo sighting 2024|alien evidence|area 51 secrets|ovni avistamentos|extraterrestrial life|ancient aliens|abdução alienigena|nasa secrets|uap footage|contatos imediatos|alien autopsy|mars anomalies|secret space program|vida em outros planetas|universo misterioso",
+        "📼 Lost Media & Dark Web": "lost media iceberg|internet mysteries|dark web stories|deep web videos|arg horror|found footage|videos perturbadores|misterios da internet|cicada 3301|backrooms explained|liminal spaces|analog horror|midia perdida|arquivos secretos|creepy pasta",
+        "🕵️ Mistérios Históricos": "unsolved mysteries history|jack the ripper|dyatlov pass|misterios da humanidade|atlantis found|triangulo das bermudas|manuscrito voynich|historical secrets|segredos do vaticano|forbidden history|arqueologia misteriosa|ancient enigmas|civilizações perdidas|teorias da conspiração|segredos ocultos",
+        
+        # --- GRUPO 2: HISTÓRIA & CIVILIZAÇÕES (Conteúdo Evergreen) ---
+        "📜 História Antiga (Documentários)": "ancient civilizations|sumerians|babylon|ancient egypt documentary|roma antiga|grecia antiga|mesopotamia history|persian empire|alexander the great|julius caesar|historia antiga|pharaohs secrets|pyramids construction|ancient technology|berço da civilização",
+        "⚔️ Guerras & Batalhas Épicas": "world war 2 documentary|segunda guerra mundial|batalhas historicas|military strategy|napoleonic wars|vietnam war footage|guerra fria|tank battles|sniper stories|special forces history|grandes generais|war history|combat footage history|armas secretas|historia militar",
+        "👑 Biografias de Grandes Líderes": "biography documentary|napoleon bonaparte|genghis khan|winston churchill|greatest leaders|life of alexander|nikola tesla biography|albert einstein life|figuras historicas|imperadores romanos|kings and queens|royal family secrets|dictators history|historia de vida|grandes personalidades",
+        "🏰 Idade Média & Castelos": "medieval history|middle ages documentary|knights and castles|crusades history|viking history|black plague|vida na idade media|tortura medieval|feudalismo|samurai history|castelos antigos|medieval warfare|sword fighting|historia medieval|dark ages",
+        "🗿 Arqueologia Proibida": "forbidden archaeology|ooparts|ancient advanced technology|gobekli tepe|descobertas impossiveis|arqueologia proibida|artefatos antigos|ancient giants|underground cities|piramides antartida|ancient apocalypse|flood myth|pre-ice age civilization|civilização antes da historia|mistérios arqueologicos",
 
-def buscar_tendencias_globais(pais_code, api_key):
-    """Busca os vídeos em alta (Trending) de um país e extrai os nichos."""
-    if not api_key: return None, "API Key necessária"
-    
-    url = "https://www.googleapis.com/youtube/v3/videos"
-    params = {
-        "part": "snippet,statistics",
-        "chart": "mostPopular",
-        "regionCode": pais_code,
-        "maxResults": 50, # Analisa os top 50 do país
-        "key": api_key
+        # --- GRUPO 3: ESPIRITUALIDADE & MENTE (Nicho Fiel) ---
+        "🙏 Histórias Bíblicas & Fé": "bible stories explained|book of enoch|angels and demons|historia biblica|apocalipse|genesis|old testament|life of jesus|profecias biblicas|nephilim|arca de noé|sodoma e gomorra|jerusalem history|milagres de jesus|biblical archaeology",
+        "🧠 Estoicismo & Filosofia de Vida": "stoicism for beginners|marcus aurelius quotes|seneca philosophy|filosofia de vida|controle emocional|sabedoria antiga|taoism explained|confucius quotes|nietzsche philosophy|plato allegory of the cave|socrates wisdom|art of war sun tzu|discipline mindset|filosofia estoica|mentalidade forte",
+        "🦁 Motivação Sigma & Disciplina": "sigma male grindset|motivational speech|david goggins motivation|discipline quotes|gym motivation|mentalidade de sucesso|homem de valor|maskulinity|financial freedom motivation|never give up|winner mindset|leis do poder|robert greene|jordan peterson clips|dark motivation",
+        "🗣️ Psicologia Sombria & Manipulação": "dark psychology tricks|manipulation techniques|body language analysis|leis da natureza humana|psicologia reversa|linguagem corporal|como ler pessoas|machiavellianism|narcissism explained|detect lies|psicologia comportamental|influenciar pessoas|segredos da mente|persuasão|analise comportamental",
+        "🧘 Meditação & Lei da Atração": "guided meditation|manifestation frequency|law of attraction success|ho'oponopono|abundancia financeira|reprogramação mental|solfeggio frequencies|dormir profundamente|limpeza energetica|chakras healing|spiritual awakening|opening third eye|frequencia 963hz|meditação guiada|poder da mente",
+
+        # --- GRUPO 4: FUTURO, CIÊNCIA & TECNOLOGIA ---
+        "🚀 Espaço & Universo": "space documentary|james webb images|black hole sound|tamanho do universo|sistema solar|vida em marte|spacex launch|nasa discoveries|universe documentary|cosmic horror|time dilation|dark matter|nebulas|astronomia|curiosidades do espaço",
+        "🤖 Inteligência Artificial (News)": "ai news today|chatgpt 5|midjourney v6|ai tools for business|inteligencia artificial|futuro da ia|robots boston dynamics|ai taking over|novidades ia|automação|nvidia ai|openai sora|artificial general intelligence|ai avatar|tecnologia futura",
+        "🧬 Futuro da Humanidade & Evolução": "future of humanity|human evolution timeline|ano 3000|transhumanism|crispr technology|futuro da terra|evolution documentary|post human|timeline of the future|cyberpunk reality|biotecnologia|life in 100 years|futurismo|scifi technology|evolução humana",
+        "💻 Programação & Tech Dark": "coding for beginners|hacker culture|cybersecurity tips|linux for hackers|python projects|programação web|tech news|gadgets reviews|pc gaming setup|hardware unboxing|tecnologia avançada|quantum computing|internet of things|dark tech|futuro dos computadores",
+        "☢️ Desastres & Engenharia": "engineering disasters|bridge collapse|chernobyl documentary|nuclear explosion|mega structures|construções incriveis|falhas de engenharia|catastrofes naturais|predios mais altos|industrial accidents|oil rig disaster|plane crash investigation|engenharia extrema|como foi feito|grandes construções",
+
+        # --- GRUPO 5: CURIOSIDADES & FATOS (Viral Rápido) ---
+        "🌍 Geografia & Mapas Curiosos": "geography facts|interesting maps|why this country is poor|geopolitica|fronteiras estranhas|paises mais ricos|curiosidades geografia|mapas explicados|demographics|population growth|megacities|geography now|curiosidades paises|travel documentary|mundo curioso",
+        "🤯 Fatos Alucinantes (Did You Know)": "amazing facts|things you didn't know|fatos aleatorios|curiosidades do mundo|voce sabia|fatos interessantes|mind blowing facts|science facts|fatos historicos|curiosidades rapidas|top 10 fatos|listas curiosas|strange facts|fatos bizarros|conhecimento geral",
+        "🆚 Comparações (Probabilidade/Tamanho)": "probability comparison|size comparison 3d|comparison video|universe size comparison|richest companies comparison|comparação de tamanho|velocidade comparação|animais comparação|predios comparação|exercito comparação|população comparação|evolution comparison|wealth comparison|comparação visual|data visualization",
+        "❓ Quiz & Testes de QI": "general knowledge quiz|guess the country|logo quiz|teste de inteligencia|adivinhe o som|riddles with answers|enigma|teste de qi|quiz de geografia|quiz de historia|movie quiz|emoji challenge|brain teasers|desafio mental|jogos de adivinhação",
+        "💊 O Que Aconteceria Se... (What If)": "what if scenarios|what if earth stopped|e se o sol apagasse|what if dinosaurs survived|e se|cenarios hipoteticos|ciencia explicada|teoria do caos|efeito borboleta|what if history|e se a alemanha ganhasse|what if humans disappeared|future timeline|ciencia curiosa|experiencias mentais",
+
+        # --- GRUPO 6: DINHEIRO, LUXO & NEGÓCIOS ---
+        "💰 Luxo & Vida de Bilionário": "billionaire lifestyle|mega mansions tour|superyachts|vida de luxo|carros de luxo|most expensive things|dubai lifestyle|monaco luxury|billionaire motivation|luxo extremo|mansões incriveis|private jet|relogios caros|estilo de vida rico|old money aesthetic",
+        "📈 Histórias de Marcas & Magnates": "business documentary|company downfall|how they make money|historia das marcas|historia mcdonalds|apple history|elon musk story|jeff bezos|warren buffett|marketing strategies|fracassos de empresas|ascensão e queda|business lessons|biografia empreendedores|economia explicada",
+        "🪙 Cripto & Mercado Financeiro": "crypto news|bitcoin prediction|investing for beginners|bolsa de valores|day trade|analise grafica|ethereum|altcoins|criptomoedas|financial crisis|economia mundial|dolar hoje|investimentos|educação financeira|dividendos",
+        "💸 Renda Extra & Marketing Digital": "passive income ideas|make money online|dropshipping results|marketing digital|afiliados|chatgpt money|youtube automation|print on demand|renda extra|trabalhar em casa|freelancer tips|side hustles|dinheiro online|ecommerce|vendas online",
+
+        # --- GRUPO 7: LIFESTYLE DARK & RELAX ---
+        "🌧️ ASMR & Sons de Chuva": "rain sounds for sleep|thunderstorm black screen|heavy rain|white noise|sons de chuva|barulho de chuva|sleep music|sons da natureza|ocean waves|fireplace sound|relaxing sounds|insomnia relief|deep sleep|sons para dormir|ambiente relaxante",
+        "✨ Frequências & Música Lofi": "lofi hip hop study|432hz healing|binaural beats|focus music|musica para estudar|relaxing jazz|musica ambiente|frequency healing|stress relief music|musica calma|piano relaxante|ambient music|study beats|musica para trabalhar|soundscape",
+        "🥒 Saúde Natural & Corpo": "natural remedies|benefits of ginger|foods that kill diabetes|curas naturais|dicas de saude|perder peso rapido|exercicios em casa|home workout|intermittent fasting|jejum intermitente|alimentos saudaveis|longevidade|biohacking|rotina saudavel|corpo humano",
+        "🌲 Sobrevivência & Bushcraft": "bushcraft shelter|solo camping rain|survival skills|acampamento solo|construção na floresta|off grid living|primitive technology|sobrevivencialismo|camping in rain|cooking in forest|vida na natureza|cabana na floresta|camping asmr|natureza selvagem|wild camping",
+        "🔨 Satisfatório & Restauração": "oddly satisfying video|restoration rusty|carpet cleaning|pressure washing|videos satisfatorios|asmr cleaning|restauracao de relogios|knife restoration|shredding machine|hydraulic press|satisfying slime|kinetic sand|soap cutting|limpeza pesada|art restoration"
     }
-    
+
+# --- FUNÇÕES DE BUSCA ---
+
+def buscar_radar_dark(pais_code, query_especifica, api_key):
+    if not api_key: return None, "API Key necessária"
+
+    data_inicio = datetime.datetime.now() - timedelta(days=30)
+    published_after = data_inicio.isoformat("T") + "Z"
+
+    if query_especifica is None: # Geral
+        url = "https://www.googleapis.com/youtube/v3/videos"
+        params = { "part": "snippet,statistics", "chart": "mostPopular", "regionCode": pais_code, "maxResults": 50, "key": api_key }
+    else: # Busca Nichada
+        url = "https://www.googleapis.com/youtube/v3/search"
+        params = {
+            "part": "snippet", "q": query_especifica, "type": "video", "order": "viewCount",
+            "publishedAfter": published_after, "regionCode": pais_code, "maxResults": 50, "key": api_key
+        }
+
     try:
         resp = requests.get(url, params=params)
         dados = resp.json()
         if "items" not in dados: return [], "Nenhum dado encontrado"
 
-        # Análise Inteligente de Nichos
+        if query_especifica is not None:
+            ids = ",".join([i["id"]["videoId"] for i in dados["items"]])
+            stats_resp = requests.get("https://www.googleapis.com/youtube/v3/videos", params={"part":"statistics,snippet", "id": ids, "key": api_key})
+            dados_items = stats_resp.json().get("items", [])
+        else:
+            dados_items = dados["items"]
+
         todos_tags = []
         videos_analisados = []
         
-        for item in dados["items"]:
+        for item in dados_items:
             stats = item["statistics"]
             snippet = item["snippet"]
             tags = snippet.get("tags", [])
-            
-            # Adiciona tags à lista geral para contagem
-            if tags:
-                todos_tags.extend([t.lower() for t in tags])
+            if tags: todos_tags.extend([t.lower() for t in tags])
             
             videos_analisados.append({
-                "titulo": snippet["title"],
-                "canal": snippet["channelTitle"],
-                "views": int(stats.get("viewCount", 0)),
-                "likes": int(stats.get("likeCount", 0)),
-                "tags": tags[:5] if tags else ["Geral"], # Pega as 5 primeiras tags
-                "thumb": snippet["thumbnails"]["high"]["url"],
-                "link": f"https://www.youtube.com/watch?v={item['id']}"
+                "titulo": snippet["title"], "canal": snippet["channelTitle"], "views": int(stats.get("viewCount", 0)),
+                "thumb": snippet["thumbnails"]["high"]["url"], "link": f"https://www.youtube.com/watch?v={item['id']}"
             })
 
-        # Conta as palavras-chave mais repetidas (Isso define o Nicho em Alta)
+        videos_analisados.sort(key=lambda x: x['views'], reverse=True)
         contagem = Counter(todos_tags)
-        top_nichos = contagem.most_common(15) # Top 15 assuntos do momento
         
-        return {"videos": videos_analisados, "top_assuntos": top_nichos}, None
-
-    except Exception as e:
-        return None, str(e)
+        return {"videos": videos_analisados, "top_assuntos": contagem.most_common(15)}, None
+    except Exception as e: return None, str(e)
 
 def buscar_top_videos(channel_id, api_key):
-    data_limite = datetime.datetime.now() - timedelta(days=45)
-    published_after = data_limite.isoformat("T") + "Z"
-    url = "https://www.googleapis.com/youtube/v3/search"
-    params = { "key": api_key, "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": published_after, "type": "video", "maxResults": 5 }
+    data = datetime.datetime.now() - timedelta(days=45)
+    params = { "key": api_key, "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": data.isoformat("T")+"Z", "type": "video", "maxResults": 5 }
     try:
-        resp = requests.get(url, params=params)
-        dados = resp.json()
-        if "items" not in dados: return []
-        videos = []
-        for item in dados["items"]:
-            videos.append({ "titulo": item["snippet"]["title"], "data": item["snippet"]["publishedAt"][:10], "thumb": item["snippet"]["thumbnails"]["high"]["url"], "video_id": item["id"]["videoId"] })
-        return videos
+        r = requests.get("https://www.googleapis.com/youtube/v3/search", params=params)
+        return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in r.json().get("items", [])]
     except: return []
 
 def buscar_dados_youtube(nicho, api_key):
-    # (Função de busca normal mantida igual)
-    if not api_key: return None, "Chave de API necessária"
+    if not api_key: return None, "Chave necessária"
     try:
-        url = "https://www.googleapis.com/youtube/v3/search"
-        params = {"part": "snippet", "q": nicho, "type": "channel", "key": api_key, "maxResults": 20}
-        resp = requests.get(url, params=params)
-        dados = resp.json()
-        if "items" not in dados: return [], None
-        
-        ids = ",".join([i["id"]["channelId"] for i in dados["items"]])
-        stats_resp = requests.get("https://www.googleapis.com/youtube/v3/channels", params={"part":"statistics", "id": ids, "key": api_key})
-        stats_map = {i["id"]: i["statistics"] for i in stats_resp.json().get("items", [])}
-        
-        resultado = []
-        for item in dados["items"]:
-            cid = item["id"]["channelId"]
-            stats = stats_map.get(cid, {})
-            videos = int(stats.get("videoCount", 0))
-            inscritos = int(stats.get("subscriberCount", 0))
-            views = int(stats.get("viewCount", 0))
-            media = views/videos if videos > 0 else 0
-            e_ouro = True if (0 < videos <= 60 and inscritos >= 1000 and media > 2000) else False
-            resultado.append({"nome": item["snippet"]["title"], "inscritos": inscritos, "total_videos": videos, "media_views": media, "e_ouro": e_ouro, "link": f"https://www.youtube.com/channel/{cid}", "id": cid})
-        return resultado, None
+        r = requests.get("https://www.googleapis.com/youtube/v3/search", params={"part":"snippet", "q":nicho, "type":"channel", "key":api_key, "maxResults":20})
+        d = r.json()
+        if "items" not in d: return [], None
+        ids = ",".join([i["id"]["channelId"] for i in d["items"]])
+        s_r = requests.get("https://www.googleapis.com/youtube/v3/channels", params={"part":"statistics", "id":ids, "key":api_key})
+        s_map = {i["id"]: i["statistics"] for i in s_r.json().get("items", [])}
+        res = []
+        for i in d["items"]:
+            cid = i["id"]["channelId"]
+            s = s_map.get(cid, {})
+            v, sub, vid = int(s.get("viewCount",0)), int(s.get("subscriberCount",0)), int(s.get("videoCount",0))
+            media = v/vid if vid > 0 else 0
+            gold = True if (0 < vid <= 60 and sub >= 1000 and media > 2000) else False
+            res.append({"nome":i["snippet"]["title"], "inscritos":sub, "total_videos":vid, "media_views":media, "e_ouro":gold, "link":f"https://www.youtube.com/channel/{cid}", "id":cid})
+        return res, None
     except Exception as e: return None, str(e)
 
-# --- TELA DE LOGIN ---
+# --- LOGIN ---
 if 'logado' not in st.session_state: st.session_state['logado'] = False
-
 def tela_login():
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown("""
-        <div style="background:rgba(255,255,255,0.9); backdrop-filter:blur(10px); padding:40px; border-radius:30px; box-shadow:0 20px 40px rgba(139, 92, 246, 0.2); text-align:center; border: 2px solid #eaddff;">
-            <h1 style="color:#5a4fcf; margin-bottom:10px; font-size: 2.5em;">🫐</h1>
-            <h2 style="color:#3d3563; margin-bottom:5px; font-weight: 800;">Blueberry Channel</h2>
-            <p style="color:#6b6399; font-size: 15px;">Bem-vindo ao sistema blueberry de captação.</p>
-        </div>
-        <br>
-        """, unsafe_allow_html=True)
-        with st.form("login_form"):
-            u = st.text_input("Usuário (admin)", placeholder="admin")
-            s = st.text_input("Senha (1234)", type="password", placeholder="1234")
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.form_submit_button("🚀 Acessar Sistema"):
-                if u == "admin" and s == "1234":
-                    st.session_state['logado'] = True
-                    st.rerun()
-                else: st.error("Senha incorreta.")
+    c1,c2,c3=st.columns([1,1,1])
+    with c2:
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Channel</h2><p>Login Admin</p></div><br>", unsafe_allow_html=True)
+        with st.form("l"):
+            u=st.text_input("User"); p=st.text_input("Pass", type="password")
+            if st.form_submit_button("🚀 Entrar"):
+                if u=="admin" and p=="1234": st.session_state['logado']=True; st.rerun()
+                else: st.error("Erro.")
 
-# --- APP PRINCIPAL ---
+# --- APP ---
 def app_principal():
     api_key_env = os.getenv("YOUTUBE_API_KEY")
-    
     with st.sidebar:
-        st.markdown("<h3 style='color:#3d3563;'>Menu 🫐</h3>", unsafe_allow_html=True)
-        # Seletor de Modo
-        modo = st.radio("Navegação:", ["🔍 Busca por Nicho", "🌍 Radar Global"])
+        st.markdown("### Menu 🫐")
+        modo = st.radio("Navegação:", ["🔍 Busca por Nicho", "🌍 Radar Global (Dark)"])
         st.divider()
-        if st.button("Sair da Conta"):
-            st.session_state['logado'] = False
-            st.rerun()
-    
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf; margin-bottom: 10px;'>🫐 Blueberry Finder AI</h1>", unsafe_allow_html=True)
+        if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    # ---------------------------------------------------------
-    # MODO 1: BUSCA POR NICHO (O que já existia)
-    # ---------------------------------------------------------
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI</h1>", unsafe_allow_html=True)
+
+    # --- MODO 1: BUSCA NORMAL ---
     if modo == "🔍 Busca por Nicho":
-        st.markdown("<p style='text-align: center; color: #6b6399;'>Sua inteligência artificial para encontrar minas de ouro.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center;'>Encontre canais específicos.</p>", unsafe_allow_html=True)
+        with st.form("f1"):
+            c1,c2=st.columns([3,1])
+            k = api_key_env if api_key_env else c1.text_input("API Key", type="password")
+            n = c1.text_input("Nicho", placeholder="Ex: Yoga...")
+            c2.write(""); c2.write("")
+            b = c2.form_submit_button("🔍 Buscar")
         
-        with st.form(key="search_form"):
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                key_input = api_key_env if api_key_env else st.text_input("Chave API", type="password")
-                nicho = st.text_input("Qual nicho vamos explorar?", placeholder="Ex: Confeitaria, ASMR...")
-            with c2:
-                st.write(""); st.write("")
-                enviar = st.form_submit_button("🔍 Buscar")
-
-        if enviar and nicho:
-            with st.spinner("✨ Minerando dados..."):
-                dados, erro = buscar_dados_youtube(nicho, key_input)
-                if erro: st.error(erro)
-                elif dados:
-                    df = pd.DataFrame(dados)
-                    df_ouro = df[df['e_ouro'] == True]
+        if b and n:
+            with st.spinner("Minerando..."):
+                d, e = buscar_dados_youtube(n, k)
+                if d:
+                    df = pd.DataFrame(d)
+                    ouro = df[df['e_ouro']==True]
                     st.divider()
-                    
-                    # Cards Dourados
-                    if not df_ouro.empty:
-                        st.success(f"🎉 Encontramos {len(df_ouro)} Canais Blueberry!")
+                    if not ouro.empty:
+                        st.success(f"Encontramos {len(ouro)} Canais Gold!")
                         cols = st.columns(3)
-                        for i, row in df_ouro.reset_index().iterrows():
-                            with cols[i % 3]:
-                                with st.container():
-                                    st.markdown(f"""
-                                    <div class="gold-card">
-                                        <div class="gold-badge">BLUEBERRY GOLD</div>
-                                        <h4 style="margin:0; color:#3d3563;">{row['nome']}</h4>
-                                        <p style="font-size:14px; margin-bottom:15px;">📹 <b>{row['total_videos']}</b> vids | 👥 <b>{row['inscritos']}</b> subs</p>
-                                    </div>""", unsafe_allow_html=True)
-                                    with st.expander("🕵️ Ver Virais (45 dias)"):
-                                        vids = buscar_top_videos(row['id'], key_input)
-                                        if vids:
-                                            prompt = "Analise estes títulos e crie variações:\n"
-                                            for v in vids:
-                                                st.markdown(f"**{v['titulo']}**<br><span style='font-size:10px'>{v['data']}</span><hr style='margin:5px 0'>", unsafe_allow_html=True)
-                                                prompt += f"- {v['titulo']}\n"
-                                            st.code(prompt, language="text")
-                                        else: st.warning("Sem virais recentes.")
-                                    st.markdown(f"<a href='{row['link']}' target='_blank'>Ver Canal ↗</a>", unsafe_allow_html=True)
-                    else: st.info("Sem canais Gold hoje.")
-
-                    # Tabela
+                        for i, r in ouro.reset_index().iterrows():
+                            with cols[i%3]:
+                                st.markdown(f"<div class='gold-card'><span class='gold-badge'>GOLD</span><h4>{r['nome']}</h4><p>📹 {r['total_videos']} | 👥 {r['inscritos']}</p></div>", unsafe_allow_html=True)
+                                with st.expander("Ver Virais"):
+                                    vs = buscar_top_videos(r['id'], k)
+                                    if vs:
+                                        p = "Crie titulos baseados nestes:\n"
+                                        for v in vs:
+                                            st.markdown(f"**{v['titulo']}**<br><small>{v['data']}</small><hr>", unsafe_allow_html=True)
+                                            p+=f"- {v['titulo']}\n"
+                                        st.code(p, language='text')
+                                st.markdown(f"<a href='{r['link']}' target='_blank'>Ver Canal ↗</a>", unsafe_allow_html=True)
                     st.divider()
-                    st.markdown("### 📊 Tabela Geral")
-                    st.dataframe(df[['nome', 'inscritos', 'total_videos', 'media_views', 'link']], column_config={"link": st.column_config.LinkColumn("Link", display_text="Ver ↗")}, use_container_width=True)
+                    st.dataframe(df[['nome','inscritos','total_videos','media_views','link']], column_config={"link": st.column_config.LinkColumn("Link", display_text="Ver ↗")}, use_container_width=True)
 
-    # ---------------------------------------------------------
-    # MODO 2: RADAR GLOBAL (O NOVO!) 🌍
-    # ---------------------------------------------------------
-    elif modo == "🌍 Radar Global":
-        st.markdown("<p style='text-align: center; color: #6b6399;'>Veja o que o mundo está assistindo <b>AGORA</b>.</p>", unsafe_allow_html=True)
+    # --- MODO 2: RADAR DARK GLOBAL (LISTA GIGANTE) ---
+    elif modo == "🌍 Radar Global (Dark)":
+        st.markdown("<p style='text-align:center;'>Espione os nichos mais lucrativos do mundo <b>AGORA</b> (Últimos 30 dias).</p>", unsafe_allow_html=True)
         
-        # Mapeamento de Países
+        # LISTA DE PAÍSES (COM ESCANDINÁVIA ❄️)
         paises = {
             "🇺🇸 Estados Unidos": "US",
-            "🇧🇷 Brasil": "BR",
-            "🇵🇹 Portugal": "PT",
-            "🇬🇧 Reino Unido": "GB",
-            "🇫🇷 França": "FR",
-            "🇩🇪 Alemanha": "DE",
-            "🇪🇸 Espanha": "ES",
-            "🇲🇽 México": "MX",
-            "🇨🇦 Canadá": "CA",
-            "🇯🇵 Japão": "JP",
-            "🇰🇷 Coreia do Sul": "KR",
-            "🇮🇳 Índia": "IN",
-            "🇦🇺 Austrália": "AU",
-            "🇷🇺 Rússia": "RU"
+            "🇸🇪 Suécia": "SE", "🇳🇴 Noruega": "NO", "🇩🇰 Dinamarca": "DK", "🇫🇮 Finlândia": "FI", "🇮🇸 Islândia": "IS", # Bloco Escandinavo
+            "🇬🇧 Reino Unido": "GB", "🇩🇪 Alemanha": "DE", "🇫🇷 França": "FR", "🇪🇸 Espanha": "ES",
+            "🇧🇷 Brasil": "BR", "🇯🇵 Japão": "JP", "🇰🇷 Coreia do Sul": "KR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN"
         }
         
-        col_sel, col_btn = st.columns([3, 1])
-        with col_sel:
-            pais_selecionado = st.selectbox("Escolha o País para Espionar:", list(paises.keys()))
-        with col_btn:
-            st.write(""); st.write("") # Espaço
-            key_input_radar = api_key_env if api_key_env else st.text_input("API Key Radar", type="password")
-            
-        if st.button("📡 Escanear Tendências", type="primary"):
-            codigo_pais = paises[pais_selecionado]
-            with st.spinner(f"Interceptando sinal do YouTube {codigo_pais}..."):
-                resultado, erro = buscar_tendencias_globais(codigo_pais, key_input_radar)
+        # Carrega o dicionário gigante
+        filtros_dict = get_nichos_dark()
+        lista_opcoes = list(filtros_dict.keys())
+
+        c1, c2, c3 = st.columns([1, 1, 1])
+        pais = c1.selectbox("1. Escolha o País:", list(paises.keys()))
+        categoria_nome = c2.selectbox("2. Escolha o Nicho Dark:", lista_opcoes)
+        
+        c3.write(""); c3.write("")
+        key_r = api_key_env if api_key_env else st.text_input("API Key", type="password")
+        
+        if c3.button("📡 Escanear Nicho", type="primary"):
+            query_valor = filtros_dict[categoria_nome]
+            with st.spinner(f"Varrendo YouTube {paises[pais]} atrás de '{categoria_nome}'..."):
+                res, erro = buscar_radar_dark(paises[pais], query_valor, key_r)
                 
-                if erro:
-                    st.error(erro)
-                elif resultado:
-                    videos = resultado["videos"]
-                    top_assuntos = resultado["top_assuntos"]
+                if res:
+                    videos = res["videos"]
+                    tags = res["top_assuntos"]
                     
-                    # 1. VISÃO GERAL DOS NICHOS (Tags mais frequentes)
                     st.divider()
-                    st.subheader(f"🔥 Nichos/Assuntos em Alta em: {pais_selecionado}")
-                    
-                    # Mostra os top assuntos como etiquetas coloridas
-                    html_tags = ""
-                    for assunto, count in top_assuntos:
-                        # Filtra palavras inúteis muito curtas ou genéricas demais se quiser
-                        if len(assunto) > 2:
-                            html_tags += f"<span class='trend-tag'>#{assunto.upper()} ({count})</span>"
-                    
+                    st.subheader(f"🔥 Tags em Alta: {categoria_nome}")
+                    html_tags = "".join([f"<span class='trend-tag'>#{t[0].upper()} ({t[1]})</span>" for t in tags if len(t[0])>3])
                     st.markdown(f"<div style='background:white; padding:20px; border-radius:15px; border:1px solid #c4b5fd;'>{html_tags}</div>", unsafe_allow_html=True)
-                    st.caption("*(O número indica quantos vídeos no Top 50 estão usando essa palavra-chave agora)*")
-
-                    # 2. LISTA DETALHADA DOS VÍDEOS EM ALTA
-                    st.divider()
-                    st.subheader(f"📹 Top Vídeos Virais ({len(videos)})")
                     
-                    # Exibe em grid de 2 colunas
-                    col_v1, col_v2 = st.columns(2)
-                    for i, vid in enumerate(videos):
-                        col_atual = col_v1 if i % 2 == 0 else col_v2
-                        with col_atual:
-                            with st.container():
-                                st.markdown(f"""
+                    st.divider()
+                    st.subheader(f"📹 Top 50 Vídeos Recentes ({len(videos)})")
+                    c_v1, c_v2 = st.columns(2)
+                    for i, v in enumerate(videos):
+                        with (c_v1 if i%2==0 else c_v2):
+                             st.markdown(f"""
                                 <div style="background:rgba(255,255,255,0.6); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid #eaddff; display:flex; gap:10px;">
-                                    <img src="{vid['thumb']}" style="width:120px; height:90px; object-fit:cover; border-radius:10px;">
+                                    <img src="{v['thumb']}" style="width:120px; height:90px; object-fit:cover; border-radius:10px;">
                                     <div>
-                                        <h5 style="margin:0; font-size:14px; color:#3d3563;">{vid['titulo'][:50]}...</h5>
-                                        <p style="font-size:12px; margin:5px 0; color:#6b6399;">📺 {vid['canal']}</p>
-                                        <p style="font-size:12px; font-weight:bold; color:#d946ef;">👁️ {vid['views']:,} views</p>
-                                        <a href="{vid['link']}" target="_blank" style="font-size:11px; text-decoration:none; color:#8b5cf6;">Assistir no YouTube ↗</a>
+                                        <h5 style="margin:0; font-size:14px; color:#3d3563;">{v['titulo'][:60]}...</h5>
+                                        <p style="font-size:11px; margin:5px 0; color:#6b6399;">📺 {v['canal']}</p>
+                                        <p style="font-size:12px; font-weight:bold; color:#d946ef;">👁️ {v['views']:,} views</p>
+                                        <a href="{v['link']}" target="_blank" style="font-size:11px; color:#8b5cf6;">Assistir ↗</a>
                                     </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                </div>""", unsafe_allow_html=True)
+                elif erro: st.error(erro)
 
-if st.session_state['logado']:
-    app_principal()
-else:
-    tela_login()
+if st.session_state['logado']: app_principal()
+else: tela_login()

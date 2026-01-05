@@ -241,12 +241,14 @@ def app_principal():
                             st.info(f"Encontramos {len(df)} canais no total.")
                             
                     with col_btn:
-                        # Converte para CSV
-                        csv = df.to_csv(index=False).encode('utf-8')
+                        # CORREÇÃO PARA EXCEL BRASILEIRO:
+                        # sep=';' -> Separa as colunas corretamente
+                        # encoding='utf-8-sig' -> Faz os acentos (ã, é, ç) aparecerem certos
+                        csv = df.to_csv(index=False, sep=';', encoding='utf-8-sig')
                         
                         # O Botão de Download
                         st.download_button(
-                            label="📥 Baixar Relatório (CSV)",
+                            label="📥 Baixar Relatório (Excel)",
                             data=csv,
                             file_name=f"relatorio_{nicho.replace(' ', '_')}.csv",
                             mime="text/csv"

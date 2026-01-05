@@ -31,7 +31,7 @@ st.markdown("""
         padding: 25px; 
         box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); 
         margin-bottom: 25px; 
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Efeito elástico */
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
     }
     .gold-card:hover { 
         transform: translateY(-8px); 
@@ -59,7 +59,7 @@ st.markdown("""
         transform: scale(1.01);
     }
 
-    /* 4. BOTÕES PRINCIPAIS (Buscar/Escanear) - SUPER RESPONSIVOS */
+    /* 4. BOTÕES PRINCIPAIS */
     div[data-testid="stFormSubmitButton"] button, div[data-testid="stButton"] button {
         background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); 
         color: #ffffff !important; 
@@ -73,15 +73,15 @@ st.markdown("""
         cursor: pointer;
     }
     div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stButton"] button:hover {
-        transform: scale(1.05) translateY(-2px); /* Cresce e Sobe */
-        box-shadow: 0 15px 35px rgba(217, 70, 239, 0.6); /* Brilho Rosa */
+        transform: scale(1.05) translateY(-2px); 
+        box-shadow: 0 15px 35px rgba(217, 70, 239, 0.6); 
         background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%);
     }
     div[data-testid="stFormSubmitButton"] button:active {
-        transform: scale(0.95); /* Clica para dentro */
+        transform: scale(0.95);
     }
     
-    /* 5. BOTÃO VER CANAL (Estilo Link) */
+    /* 5. BOTÃO VER CANAL */
     .visit-btn {
         display: block;
         width: 100%;
@@ -120,7 +120,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- DICIONÁRIO MESTRE (50 CATEGORIAS + SUPERAÇÃO) ---
+# --- DICIONÁRIO MESTRE ---
 def get_nichos_dark():
     return {
         "🚀 GERAL (Top Trends)": None,
@@ -161,7 +161,7 @@ def get_nichos_dark():
         "🔨 Satisfatório & Restauração": "oddly satisfying video|restoration rusty|carpet cleaning|pressure washing|videos satisfatorios|asmr cleaning|restauracao de relogios|knife restoration|shredding machine|hydraulic press|satisfying slime|kinetic sand|soap cutting|limpeza pesada|art restoration"
     }
 
-# --- FUNÇÕES (MANTIDAS) ---
+# --- FUNÇÕES ---
 def buscar_radar_dark(pais_code, query_especifica, api_key):
     if not api_key: return None, "API Key necessária"
     data_inicio = datetime.datetime.now() - timedelta(days=30)
@@ -292,6 +292,7 @@ def app_principal():
             "🇨🇦 Canadá": "CA",      # Tier 1
             "🇦🇺 Austrália": "AU",   # Tier 1
             "🇸🇪 Suécia": "SE", "🇳🇴 Noruega": "NO", "🇩🇰 Dinamarca": "DK", "🇫🇮 Finlândia": "FI", "🇮🇸 Islândia": "IS", # Escandinavia
+            "🇲🇽 México": "MX",      # LatAm King
             "🇩🇪 Alemanha": "DE", "🇫🇷 França": "FR", "🇪🇸 Espanha": "ES",
             "🇧🇷 Brasil": "BR", "🇵🇹 Portugal": "PT",
             "🇯🇵 Japão": "JP", "🇰🇷 Coreia do Sul": "KR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN"

@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import os
 import datetime
+from datetime import timedelta
 from dotenv import load_dotenv
 
 # Carrega variáveis
@@ -40,73 +41,78 @@ st.markdown("""
     header[data-testid="stHeader"] { background: transparent; }
 
     /* 2. TIPOGRAFIA */
-    h1, h2, h3 {
-        font-family: 'Inter', sans-serif;
-        color: #2c3e50 !important;
-        font-weight: 700;
-    }
+    h1, h2, h3 { font-family: 'Inter', sans-serif; color: #2c3e50 !important; font-weight: 700; }
     p, label, span, div { color: #4a5568 !important; }
 
     /* 3. CARDS */
-    .card-container {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        border-radius: 20px;
-        padding: 25px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-        margin-bottom: 20px;
-    }
     .gold-card {
         background: linear-gradient(135deg, #ffffff 0%, #fffbf0 100%);
         border: 2px solid #f6e6b4;
         border-radius: 20px;
-        padding: 25px;
+        padding: 20px;
         box-shadow: 0 10px 25px rgba(212, 175, 55, 0.15);
         margin-bottom: 20px;
         position: relative;
     }
     .gold-badge {
         background: linear-gradient(90deg, #fce38a 0%, #f38181 100%);
-        color: white;
-        padding: 5px 15px;
-        border-radius: 15px;
-        font-size: 12px;
-        font-weight: bold;
-        position: absolute;
-        top: -12px;
-        right: 20px;
+        color: white; padding: 5px 15px; border-radius: 15px;
+        font-size: 10px; font-weight: bold; position: absolute; top: -10px; right: 15px;
     }
 
-    /* 4. INPUTS E BOTÕES */
-    .stTextInput input {
-        background-color: #ffffff !important;
-        border: 2px solid #e2e8f0 !important;
-        border-radius: 15px !important;
-        padding: 15px !important;
-    }
+    /* 4. BOTÕES */
     div[data-testid="stFormSubmitButton"] button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 50px;
-        width: 100%;
-        box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3);
+        color: white; border: none; padding: 12px 24px; border-radius: 50px;
+        width: 100%; box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3);
     }
-    /* Estilo Especial para o Botão de Download */
-    div[data-testid="stDownloadButton"] button {
-        background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-        color: #2d3748;
-        border: 1px solid #e2e8f0;
-        border-radius: 15px;
-        padding: 10px 20px;
-        font-weight: 600;
+    
+    /* 5. ÁREA DE VÍDEOS VIRAIS (Dentro do Expander) */
+    .viral-box {
+        background-color: #f8fafc;
+        border-left: 3px solid #667eea;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 0 10px 10px 0;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LÓGICA DE BUSCA ---
+# --- NOVA FUNÇÃO: BUSCAR TOP VÍDEOS RECENTES ---
+def buscar_top_videos(channel_id, api_key):
+    # 1. Define a data limite (45 dias atrás) no formato que o YouTube exige (RFC 3339)
+    data_limite = datetime.datetime.now() - timedelta(days=45)
+    published_after = data_limite.isoformat("T") + "Z" # Ex: 2023-11-20T00:00:00Z
+    
+    url = "https://www.googleapis.com/youtube/v3/search"
+    params = {
+        "key": api_key,
+        "channelId": channel_id,
+        "part": "snippet",
+        "order": "viewCount", # Ordena pelos mais vistos
+        "publishedAfter": published_after, # Só os novos
+        "type": "video",
+        "maxResults": 5
+    }
+    
+    try:
+        resp = requests.get(url, params=params)
+        dados = resp.json()
+        if "items" not in dados: return []
+        
+        videos = []
+        for item in dados["items"]:
+            videos.append({
+                "titulo": item["snippet"]["title"],
+                "data": item["snippet"]["publishedAt"][:10], # Pega só a data YYYY-MM-DD
+                "thumb": item["snippet"]["thumbnails"]["high"]["url"],
+                "video_id": item["id"]["videoId"]
+            })
+        return videos
+    except:
+        return []
+
+# --- LÓGICA DE BUSCA DE CANAIS ---
 def buscar_dados_youtube(nicho, api_key):
     if not api_key: return None, "Chave de API necessária"
     
@@ -143,18 +149,18 @@ def buscar_dados_youtube(nicho, api_key):
             views = int(stats.get("viewCount", 0))
             videos = int(stats.get("videoCount", 0))
             media = views / videos if videos > 0 else 0
-            engajamento = (media / inscritos * 100) if inscritos > 0 else 0
-
+            
             e_ouro = False
+            # Regra mantida: < 60 videos, > 1k inscritos, > 2k views
             if videos > 0 and videos <= 60 and inscritos >= 1000 and media > 2000:
                 e_ouro = True
 
             resultado.append({
+                "id": id_canal, # Importante para buscar os vídeos depois
                 "nome": snippet["title"],
                 "inscritos": inscritos,
                 "total_videos": videos,
                 "media_views": round(media, 0),
-                "score": round(engajamento, 1),
                 "e_ouro": e_ouro,
                 "link": f"https://www.youtube.com/channel/{id_canal}"
             })
@@ -171,21 +177,17 @@ def tela_login():
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.markdown("""
         <div style="background:white; padding:30px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,0.05); text-align:center;">
-            <h2 style="color:#2c3e50; margin-bottom:10px;">Bem-vindo</h2>
-            <p style="color:#718096;">Acesse sua ferramenta de inteligência.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+            <h2 style="color:#2c3e50; margin-bottom:10px;">Login</h2>
+        </div>""", unsafe_allow_html=True)
         with st.form("login_form"):
             u = st.text_input("Usuário")
             s = st.text_input("Senha", type="password")
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.form_submit_button("✨ Entrar no Sistema"):
+            if st.form_submit_button("Entrar"):
                 if u == "admin" and s == "1234":
                     st.session_state['logado'] = True
                     st.rerun()
                 else:
-                    st.error("Dados inválidos.")
+                    st.error("Erro.")
 
 # --- APP PRINCIPAL ---
 def app_principal():
@@ -198,7 +200,6 @@ def app_principal():
             st.rerun()
     
     st.markdown("<h1 style='text-align: center; color: #2d3748;'>✨ Gold Finder AI</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #718096; margin-bottom: 30px;'>Descubra oportunidades ocultas.</p>", unsafe_allow_html=True)
 
     with st.container():
         with st.form(key="search_form"):
@@ -214,72 +215,74 @@ def app_principal():
                 st.write("")
                 enviar = st.form_submit_button("🔍 Buscar")
 
-    if enviar:
-        if not nicho:
-            st.warning("Digite um nicho.")
-        elif not api_key_input:
-            st.warning("Chave necessária.")
-        else:
-            with st.spinner("Analisando dados..."):
-                dados, erro = buscar_dados_youtube(nicho, api_key_input)
+    if enviar and nicho and api_key_input:
+        with st.spinner("Minerando Canais e Analisando Vídeos..."):
+            dados, erro = buscar_dados_youtube(nicho, api_key_input)
+            
+            if erro:
+                st.error(f"Erro: {erro}")
+            elif dados:
+                df = pd.DataFrame(dados)
+                df_ouro = df[df['e_ouro'] == True]
                 
-                if erro:
-                    st.error(f"Erro: {erro}")
-                elif dados:
-                    df = pd.DataFrame(dados)
-                    df_ouro = df[df['e_ouro'] == True]
-                    
-                    # --- AQUI ESTÁ A MÁGICA DO DOWNLOAD ---
-                    st.divider()
-                    col_res, col_btn = st.columns([3, 1])
-                    
-                    with col_res:
-                         # Mostra quantos achou
-                        if not df_ouro.empty:
-                            st.success(f"Encontramos {len(df_ouro)} oportunidades GOLD!")
-                        else:
-                            st.info(f"Encontramos {len(df)} canais no total.")
-                            
-                    with col_btn:
-                        # CORREÇÃO PARA EXCEL BRASILEIRO:
-                        # sep=';' -> Separa as colunas corretamente
-                        # encoding='utf-8-sig' -> Faz os acentos (ã, é, ç) aparecerem certos
-                        csv = df.to_csv(index=False, sep=';', encoding='utf-8-sig')
-                        
-                        # O Botão de Download
-                        st.download_button(
-                            label="📥 Baixar Relatório (Excel)",
-                            data=csv,
-                            file_name=f"relatorio_{nicho.replace(' ', '_')}.csv",
-                            mime="text/csv"
-                        )
-                    # ---------------------------------------
+                st.divider()
+                
+                # Botão CSV Global
+                csv = df.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                st.download_button("📥 Baixar Relatório (Excel)", csv, f"relatorio.csv", "text/csv")
 
-                    if not df_ouro.empty:
-                        cols = st.columns(3)
-                        for index, row in df_ouro.reset_index().iterrows():
-                            with cols[index % 3]:
+                if not df_ouro.empty:
+                    st.success(f"🔥 {len(df_ouro)} Minas de Ouro Encontradas!")
+                    
+                    # Layout em Grid
+                    cols = st.columns(3)
+                    for index, row in df_ouro.reset_index().iterrows():
+                        with cols[index % 3]:
+                            with st.container():
                                 st.markdown(f"""
                                 <div class="gold-card">
                                     <div class="gold-badge">GOLD</div>
-                                    <h3 style="color:#2d3748; margin:0;">{row['nome']}</h3>
-                                    <p style="margin-top:10px; font-size:14px;">
-                                        📹 <strong>{row['total_videos']}</strong> vídeos<br>
-                                        👥 <strong>{row['inscritos']}</strong> inscritos<br>
-                                        👁️ <strong>{row['media_views']:,.0f}</strong> views
+                                    <h4 style="margin:0; color:#2d3748;">{row['nome']}</h4>
+                                    <p style="font-size:13px; margin-bottom:5px;">
+                                        📹 {row['total_videos']} vids | 👥 {row['inscritos']} subs
                                     </p>
-                                    <a href="{row['link']}" target="_blank">
-                                        <button style="width:100%; border:1px solid #e2e8f0; background:white; padding:8px; border-radius:10px; cursor:pointer;">Ver Canal ↗</button>
-                                    </a>
                                 </div>
                                 """, unsafe_allow_html=True)
-                    
-                    st.subheader("Tabela Completa")
-                    st.dataframe(
-                        df[['nome', 'inscritos', 'total_videos', 'media_views']], 
-                        use_container_width=True, 
-                        hide_index=True
-                    )
+                                
+                                # --- AQUI ESTÁ A MÁGICA: O RAIO-X DO VÍDEO ---
+                                with st.expander("🕵️ Ver Top 5 Virais (45 dias)"):
+                                    # Busca os vídeos SÓ quando expande (ou se quisermos carregar antes, aqui carrega na hora)
+                                    # Para performance, vamos buscar agora:
+                                    videos_top = buscar_top_videos(row['id'], api_key_input)
+                                    
+                                    if videos_top:
+                                        prompt_gpt = "Atue como especialista em YouTube. Analise estes títulos virais e crie 5 variações para o meu nicho mantendo a estrutura psicológica:\n\n"
+                                        
+                                        for v in videos_top:
+                                            st.markdown(f"""
+                                            <div class="viral-box">
+                                                <img src="{v['thumb']}" style="width:100%; border-radius:8px; margin-bottom:5px;">
+                                                <p style="font-weight:bold; font-size:12px; color:#2d3748; line-height:1.2;">{v['titulo']}</p>
+                                                <p style="font-size:10px; color:#718096;">📅 {v['data']}</p>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                            prompt_gpt += f"- {v['titulo']}\n"
+                                        
+                                        st.divider()
+                                        st.caption("🤖 Prompt para Modelagem:")
+                                        st.code(prompt_gpt, language="text")
+                                    else:
+                                        st.warning("Nenhum vídeo bombou nos últimos 45 dias.")
+                                        
+                                # Botão de ver canal
+                                st.markdown(f"""<a href="{row['link']}" target="_blank"><button style="width:100%; border:1px solid #ddd; background:white; border-radius:5px; cursor:pointer;">Ir para YouTube ↗</button></a>""", unsafe_allow_html=True)
+
+                else:
+                    st.info("Nenhuma oportunidade Gold encontrada.")
+
+                st.divider()
+                st.subheader("Tabela Geral")
+                st.dataframe(df[['nome', 'inscritos', 'media_views']], use_container_width=True, hide_index=True)
 
 if st.session_state['logado']:
     app_principal()

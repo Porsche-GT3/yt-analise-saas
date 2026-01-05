@@ -248,16 +248,19 @@ def app_principal():
                 else:
                     st.info("Nenhum canal 'Blueberry Gold' encontrado hoje.")
                 
-                # 2. TABELA GERAL (VOLTOU AQUI!)
+                # 2. TABELA GERAL (AGORA COM LINKS!)
                 st.divider()
                 st.markdown("<h3 style='color:#3d3563;'>📊 Tabela Geral do Nicho</h3>", unsafe_allow_html=True)
                 st.dataframe(
-                    df[['nome', 'inscritos', 'total_videos', 'media_views']],
+                    # Adicionei 'link' aqui na lista de colunas
+                    df[['nome', 'inscritos', 'total_videos', 'media_views', 'link']],
                     column_config={
                         "nome": "Canal",
                         "inscritos": st.column_config.NumberColumn("Inscritos", format="%d"),
                         "total_videos": st.column_config.NumberColumn("Vídeos"),
                         "media_views": st.column_config.NumberColumn("Média Views", format="%d"),
+                        # Adicionei a configuração da nova coluna de Link
+                        "link": st.column_config.LinkColumn("Acessar Canal", display_text="Ver Canal ↗")
                     },
                     use_container_width=True,
                     hide_index=True

@@ -31,41 +31,31 @@ st.markdown("""
         background-image: linear-gradient(to top right, #0F2027 0%, #203A43 50%, #2C5364 100%);
         background-attachment: fixed;
     }
-    
-    /* Blocos de Vidro */
     [data-testid="stAppViewBlockContainer"] {
         background-color: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
         border-radius: 20px;
         padding: 25px;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
     }
-    
-    /* Tipografia e Cores */
     h1, h2, h3, p, span, div, label { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; }
     
-    /* Botões */
-    .stButton button {
+    /* Botões dentro do form */
+    div[data-testid="stFormSubmitButton"] button {
         background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%);
         color: #000 !important;
         font-weight: bold !important;
         border: none;
         border-radius: 25px;
-        transition: transform 0.2s;
+        width: 100%; /* Botão ocupa largura total */
     }
-    .stButton button:hover { transform: scale(1.05); }
-
-    /* Inputs */
+    
     .stTextInput input {
         background-color: rgba(0,0,0,0.3) !important;
         color: white !important;
         border-radius: 15px;
         border: 1px solid rgba(255,255,255,0.2);
     }
-    
-    /* Destaque para o "Ouro" */
     .gold-box {
         background-color: rgba(255, 215, 0, 0.15);
         border: 1px solid gold;
@@ -76,16 +66,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- LÓGICA DE BUSCA (ATUALIZADA) ---
+# --- LÓGICA DE BUSCA ---
 def buscar_dados_youtube(nicho, api_key):
-    if not api_key: return None, "Configure a API Key nas Secrets"
-
-    # 1. AUMENTAMOS PARA 20 CANAIS
+    if not api_key: return None, "Configure a API Key"
+    
     url_search = "https://www.googleapis.com/youtube/v3/search"
-    params_search = {
-        "part": "snippet", "q": nicho, "type": "channel", 
-        "key": api_key, "maxResults": 20 
-    }
+    params_search = { "part": "snippet", "q": nicho, "type": "channel", "key": api_key, "maxResults": 20 }
     
     try:
         resp = requests.get(url_search, params=params_search)
@@ -114,17 +100,14 @@ def buscar_dados_youtube(nicho, api_key):
             inscritos = int(stats.get("subscriberCount", 0))
             views = int(stats.get("viewCount", 0))
             videos = int(stats.get("videoCount", 0))
-
             media = views / videos if videos > 0 else 0
             engajamento = (media / inscritos * 100) if inscritos > 0 else 0
 
-            # CRITÉRIO DE OURO: Validamos aqui se compensa modelar
-            # Regra: < 50 videos E > 1000 inscritos E média > 3000 views
             e_ouro = False
             motivo = ""
             if videos > 0 and videos <= 50 and inscritos >= 1000 and media > 3000:
                 e_ouro = True
-                motivo = "🚀 Poucos vídeos, Muitas views!"
+                motivo = "🚀 Oportunidade Validada!"
 
             resultado.append({
                 "nome": snippet["title"],
@@ -132,16 +115,15 @@ def buscar_dados_youtube(nicho, api_key):
                 "total_videos": videos,
                 "media_views": round(media, 0),
                 "score": round(engajamento, 1),
-                "e_ouro": e_ouro, # Nova flag
+                "e_ouro": e_ouro,
                 "motivo": motivo,
                 "link": f"https://www.youtube.com/channel/{id_canal}"
             })
-            
         return resultado, None
     except Exception as e:
         return None, str(e)
 
-# --- SISTEMA DE LOGIN ---
+# --- LOGIN ---
 if 'logado' not in st.session_state: st.session_state['logado'] = False
 
 def tela_login():
@@ -149,18 +131,21 @@ def tela_login():
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         st.title("🔒 Login SaaS")
-        u = st.text_input("Usuário")
-        s = st.text_input("Senha", type="password")
-        if st.button("Acessar Painel", use_container_width=True):
-            if u == "admin" and s == "1234":
-                st.session_state['logado'] = True
-                st.rerun()
-            else:
-                st.error("Acesso negado")
+        with st.form("login_form"):
+            u = st.text_input("Usuário")
+            s = st.text_input("Senha", type="password")
+            btn_login = st.form_submit_button("Acessar Painel")
+            
+            if btn_login:
+                if u == "admin" and s == "1234":
+                    st.session_state['logado'] = True
+                    st.rerun()
+                else:
+                    st.error("Acesso negado")
 
 # --- APP PRINCIPAL ---
 def app_principal():
-    api_key = os.getenv("YOUTUBE_API_KEY") # Tenta pegar local
+    api_key_env = os.getenv("YOUTUBE_API_KEY")
     
     with st.sidebar:
         st.header("Menu")
@@ -170,61 +155,67 @@ def app_principal():
     
     st.title("💎 Caçador de Canais de Ouro")
     st.write("Identifique canais novos que estão explodindo para modelar.")
-    
-    # Campo de API KEY se não estiver no .env (para facilitar teste na nuvem)
-    if not api_key:
-        api_key = st.text_input("Cole sua API Key do YouTube aqui (Temporário):", type="password")
 
-    nicho = st.text_input("Digite o Nicho:", placeholder="Ex: Investimentos, ASMR, Cortes Podcast...")
-    
-    if st.button("🔎 Analisar Mercado", type="primary") and nicho and api_key:
-        with st.spinner("Minerando 20 canais e procurando pepitas de ouro..."):
-            dados, erro = buscar_dados_youtube(nicho, api_key)
-            
-            if erro:
-                st.error(f"Erro: {erro}")
-            elif dados:
-                df = pd.DataFrame(dados)
+    # --- AQUI ESTÁ A MUDANÇA: O FORMULÁRIO ---
+    # Ao usar 'with st.form', o Enter funciona para enviar!
+    with st.form(key="search_form"):
+        # Se não tiver chave no ambiente, pede aqui dentro do form
+        if not api_key_env:
+            api_key_input = st.text_input("Cole sua API Key do YouTube:", type="password")
+        else:
+            api_key_input = api_key_env
+        
+        nicho = st.text_input("Digite o Nicho:", placeholder="Ex: Historia triste, Dark Web, Curiosidades...")
+        
+        # O botão agora é de "submit" (envio)
+        enviar = st.form_submit_button("🔍 Analisar Mercado")
+
+    # A lógica só roda se o botão de envio (ou Enter) for acionado
+    if enviar:
+        if not nicho:
+            st.warning("Por favor, digite um nicho.")
+        elif not api_key_input:
+            st.warning("Precisamos da API Key para funcionar.")
+        else:
+            with st.spinner("Minerando 20 canais e procurando pepitas de ouro..."):
+                dados, erro = buscar_dados_youtube(nicho, api_key_input)
                 
-                # --- SESSÃO 1: AS PEPITAS DE OURO (FILTRO QUE VOCÊ PEDIU) ---
-                # Filtra apenas os que marcamos como "e_ouro" = True
-                df_ouro = df[df['e_ouro'] == True]
-                
-                st.divider()
-                if not df_ouro.empty:
-                    st.success(f"🔥 ENCONTRAMOS {len(df_ouro)} CANAIS PERFEITOS PARA MODELAR!")
-                    st.markdown("Estes canais têm **menos de 50 vídeos**, **mais de 1.000 inscritos** e **alta visualização**.")
+                if erro:
+                    st.error(f"Erro: {erro}")
+                elif dados:
+                    df = pd.DataFrame(dados)
+                    df_ouro = df[df['e_ouro'] == True]
                     
-                    for index, row in df_ouro.iterrows():
-                        with st.container():
+                    st.divider()
+                    if not df_ouro.empty:
+                        st.success(f"🔥 ENCONTRAMOS {len(df_ouro)} CANAIS DE OURO!")
+                        for index, row in df_ouro.iterrows():
                             st.markdown(f"""
                             <div class="gold-box">
                                 <h3>🏆 {row['nome']}</h3>
-                                <p>📹 <b>Vídeos:</b> {row['total_videos']} (Muito Baixo!)</p>
+                                <p>📹 <b>Vídeos:</b> {row['total_videos']} (Baixo esforço)</p>
                                 <p>👥 <b>Inscritos:</b> {row['inscritos']}</p>
                                 <p>👁️ <b>Média Views:</b> {row['media_views']:,.0f}</p>
-                                <a href="{row['link']}" target="_blank" style="text-decoration:none;">
-                                    <button style="background:white; color:black; border:none; padding:10px; border-radius:10px; cursor:pointer;">
-                                        Ver Canal no YouTube ↗
+                                <a href="{row['link']}" target="_blank">
+                                    <button style="background:white; color:black; border:none; padding:8px 15px; border-radius:15px; cursor:pointer;">
+                                        Ver Canal ↗
                                     </button>
                                 </a>
                             </div>
                             """, unsafe_allow_html=True)
-                else:
-                    st.warning("⚠️ Nenhum canal 'Mina de Ouro' encontrado neste nicho com as regras (Vídeos < 50 e Inscritos > 1k). Tente outro nicho!")
+                    else:
+                        st.warning("Nenhum canal 'Mina de Ouro' (Vídeos < 50 e Views Altas) encontrado. Tente outro termo!")
 
-                # --- SESSÃO 2: TABELA GERAL (TOP 20) ---
-                st.divider()
-                st.subheader(f"📊 Análise Geral (Top {len(df)} Canais)")
-                st.dataframe(
-                    df[['nome', 'total_videos', 'inscritos', 'media_views', 'link']],
-                    column_config={
-                        "link": st.column_config.LinkColumn("Link"),
-                        "media_views": st.column_config.NumberColumn("Média Views"),
-                        "total_videos": st.column_config.NumberColumn("Total Vídeos"),
-                    },
-                    use_container_width=True, hide_index=True
-                )
+                    st.divider()
+                    st.subheader("📊 Tabela Geral")
+                    st.dataframe(
+                        df[['nome', 'total_videos', 'inscritos', 'media_views', 'link']],
+                        column_config={
+                            "link": st.column_config.LinkColumn("Link"),
+                            "media_views": st.column_config.NumberColumn("Views Médias"),
+                        },
+                        use_container_width=True, hide_index=True
+                    )
 
 if st.session_state['logado']:
     app_principal()

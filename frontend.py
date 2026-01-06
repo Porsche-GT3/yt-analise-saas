@@ -40,7 +40,28 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- DICIONÁRIO MESTRE (TODOS OS NICHOS) ---
+# --- MAPA DE IDIOMAS (CRUCIAL PARA O ERRO) ---
+def get_lang_code(pais_code):
+    # Mapeia o código do país para o código de idioma do YouTube (hl / relevanceLanguage)
+    mapa = {
+        "US": "en", "GB": "en", "CA": "en", "AU": "en", # Inglês
+        "BR": "pt", "PT": "pt", # Português
+        "MX": "es", "ES": "es", "AR": "es", "CO": "es", "CL": "es", # Espanhol
+        "FR": "fr", # Francês
+        "DE": "de", # Alemão
+        "IT": "it", # Italiano
+        "JP": "ja", # Japonês
+        "KR": "ko", # Coreano
+        "RU": "ru", # Russo
+        "IN": "en", # Índia (Inglês é forte no nicho Dark/Tech)
+        "SE": "sv", # Sueco
+        "NO": "no", # Norueguês
+        "DK": "da", # Dinamarquês
+        "FI": "fi"  # Finlandês
+    }
+    return mapa.get(pais_code, "en") # Padrão Inglês se não achar
+
+# --- DICIONÁRIO MESTRE ---
 def get_nichos_dark():
     return {
         "🚀 GERAL (Top Trends)": None,
@@ -91,23 +112,43 @@ def get_nichos_dark():
 # --- FUNÇÕES DE BUSCA (VIRAIS) ---
 def buscar_radar_dark(pais_code, query_especifica, api_key):
     if not api_key: return None, "API Key necessária"
+    
+    # 1. PEGA O IDIOMA DO PAÍS
+    lang_code = get_lang_code(pais_code)
+    
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
+    
+    params = {
+        "part": "snippet,statistics",
+        "regionCode": pais_code,
+        "maxResults": 50,
+        "key": api_key,
+        "relevanceLanguage": lang_code # <--- TRAVA DE IDIOMA
+    }
+    
     if query_especifica is None:
         url = "https://www.googleapis.com/youtube/v3/videos"
-        params = { "part": "snippet,statistics", "chart": "mostPopular", "regionCode": pais_code, "maxResults": 50, "key": api_key }
+        params["chart"] = "mostPopular"
     else:
         url = "https://www.googleapis.com/youtube/v3/search"
-        params = { "part": "snippet", "q": query_especifica, "type": "video", "order": "viewCount", "publishedAfter": published_after, "regionCode": pais_code, "maxResults": 50, "key": api_key }
+        params["q"] = query_especifica
+        params["type"] = "video"
+        params["order"] = "viewCount"
+        params["publishedAfter"] = published_after
+
     try:
         resp = requests.get(url, params=params)
         dados = resp.json()
         if "items" not in dados: return [], "Nenhum dado encontrado"
+        
+        # Se for busca, precisamos pegar stats detalhados
+        dados_items = dados["items"]
         if query_especifica is not None:
             ids = ",".join([i["id"]["videoId"] for i in dados["items"]])
             stats_resp = requests.get("https://www.googleapis.com/youtube/v3/videos", params={"part":"statistics,snippet", "id": ids, "key": api_key})
             dados_items = stats_resp.json().get("items", [])
-        else: dados_items = dados["items"]
+        
         todos_tags = []
         videos_analisados = []
         for item in dados_items:
@@ -120,16 +161,17 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
     except Exception as e: return None, str(e)
 
-# --- NOVA FUNÇÃO: TOP 100 CANAIS (HALL DA FAMA) ---
+# --- TOP 100 CANAIS (HALL DA FAMA) ---
 def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
     if not api_key: return []
-    # Se for "Geral", deixamos vazio para pegar os top do país
     q = query_especifica if query_especifica else ""
     
+    # 1. PEGA O IDIOMA DO PAÍS
+    lang_code = get_lang_code(pais_code)
+
     canais_encontrados = []
     next_page_token = None
     
-    # Fazemos 2 chamadas para tentar chegar perto de 100 resultados (50 por pág)
     for _ in range(2): 
         url = "https://www.googleapis.com/youtube/v3/search"
         params = {
@@ -138,7 +180,8 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
             "type": "channel",
             "regionCode": pais_code,
             "maxResults": 50,
-            "key": api_key
+            "key": api_key,
+            "relevanceLanguage": lang_code # <--- TRAVA DE IDIOMA AQUI TAMBÉM
         }
         if next_page_token: params["pageToken"] = next_page_token
         
@@ -148,8 +191,6 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
             if "items" not in data: break
             
             ids = [i["id"]["channelId"] for i in data["items"]]
-            
-            # Pega estatísticas detalhadas
             url_stats = "https://www.googleapis.com/youtube/v3/channels"
             r_stats = requests.get(url_stats, params={"part": "statistics,snippet", "id": ",".join(ids), "key": api_key})
             stats_data = r_stats.json().get("items", [])
@@ -161,7 +202,6 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
                 views = int(stats.get("viewCount", 0))
                 video_count = int(stats.get("videoCount", 0))
                 
-                # FILTRO: Apenas canais validados (>1k subs)
                 if subs > 1000:
                     canais_encontrados.append({
                         "Canal": snippet["title"],
@@ -174,10 +214,8 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
             
             next_page_token = data.get("nextPageToken")
             if not next_page_token: break
-            
         except: break
     
-    # Ordena por Total Views (os maiores primeiro)
     canais_encontrados.sort(key=lambda x: x["Total Views"], reverse=True)
     return canais_encontrados
 
@@ -292,10 +330,10 @@ def app_principal():
         if c3.button("📡 Escanear Nicho & Canais", type="primary"):
             query = filtros_dict[categoria_nome]
             with st.spinner(f"Varrendo YouTube {paises[pais]} atrás de '{categoria_nome}'..."):
-                # 1. Busca Vídeos Virais (Já existia)
+                # 1. Busca Vídeos Virais (COM TRAVA DE IDIOMA)
                 res, erro = buscar_radar_dark(paises[pais], query, key_r)
                 
-                # 2. Busca Top Canais (NOVO!)
+                # 2. Busca Top Canais (COM TRAVA DE IDIOMA)
                 top_canais = buscar_top_canais_nicho(paises[pais], query, key_r)
 
                 if res:

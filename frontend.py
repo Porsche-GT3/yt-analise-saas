@@ -34,6 +34,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- MAPA DE IDIOMAS (Opcional, mas útil para o futuro) ---
+def get_lang_code(pais_code):
+    mapa = {
+        "US": "en", "GB": "en", "CA": "en", "AU": "en",
+        "BR": "pt", "PT": "pt",
+        "MX": "es", "ES": "es", "AR": "es",
+        "FR": "fr", "DE": "de", "IT": "it", "JP": "ja", "KR": "ko", "RU": "ru", "IN": "en"
+    }
+    return mapa.get(pais_code, "en")
+
 # --- DICIONÁRIO MESTRE ---
 def get_nichos_dark():
     return {
@@ -76,14 +86,14 @@ def get_nichos_dark():
         "🔨 Satisfatório & Restauração": "oddly satisfying video|restoration rusty|carpet cleaning|pressure washing|videos satisfatorios|asmr cleaning|restauracao de relogios|knife restoration|shredding machine|hydraulic press|satisfying slime|kinetic sand|soap cutting|limpeza pesada|art restoration"
     }
 
-# --- FUNÇÕES DE BUSCA (CORRIGIDAS) ---
+# --- FUNÇÕES DE BUSCA (VIRAIS) - AGORA SEGURAS ---
 def buscar_radar_dark(pais_code, query_especifica, api_key):
     if not api_key: return None, "API Key necessária"
     
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
     
-    # REMOVIDO: relevanceLanguage (Causava erro com keywords mistas)
+    # 1. Parâmetros Base
     params = {
         "part": "snippet,statistics",
         "regionCode": pais_code,
@@ -105,32 +115,49 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         resp = requests.get(url, params=params)
         dados = resp.json()
         
-        # TRATAMENTO DE ERRO REAL DO YOUTUBE
+        # 2. Tratamento de Erros da API
         if "error" in dados:
             return [], f"Erro API: {dados['error']['message']}"
         if "items" not in dados:
-            return [], "Nenhum dado encontrado (Tente outro nicho ou país)"
+            return [], "Nenhum dado encontrado (Tente outro nicho)"
         
-        # Lógica de stats
+        # 3. Lógica para pegar Estatísticas (SEARCH não devolve stats, VIDEOS sim)
         dados_items = dados["items"]
         if query_especifica is not None:
-            ids = ",".join([i["id"]["videoId"] for i in dados["items"]])
+            # Se veio da busca, precisamos pegar os detalhes com videos.list
+            ids = ",".join([i["id"]["videoId"] for i in dados["items"] if "videoId" in i["id"]])
             if ids:
                 stats_resp = requests.get("https://www.googleapis.com/youtube/v3/videos", params={"part":"statistics,snippet", "id": ids, "key": api_key})
                 dados_items = stats_resp.json().get("items", [])
         
         todos_tags = []
         videos_analisados = []
+        
         for item in dados_items:
-            stats = item["statistics"]
-            snippet = item["snippet"]
+            # 4. USO SEGURO DO .get() PARA EVITAR KEYERROR 'STATISTICS'
+            stats = item.get("statistics", {})
+            snippet = item.get("snippet", {})
             tags = snippet.get("tags", [])
+            
             if tags: todos_tags.extend([t.lower() for t in tags])
-            videos_analisados.append({ "titulo": snippet["title"], "canal": snippet["channelTitle"], "views": int(stats.get("viewCount", 0)), "thumb": snippet["thumbnails"]["high"]["url"], "link": f"https://www.youtube.com/watch?v={item['id']}" })
+            
+            # Pega views com segurança (se não tiver, põe 0)
+            view_count = int(stats.get("viewCount", 0))
+            
+            videos_analisados.append({ 
+                "titulo": snippet.get("title", "Sem Título"), 
+                "canal": snippet.get("channelTitle", "Desconhecido"), 
+                "views": view_count, 
+                "thumb": snippet.get("thumbnails", {}).get("high", {}).get("url", ""), 
+                "link": f"https://www.youtube.com/watch?v={item['id']}" 
+            })
+            
         videos_analisados.sort(key=lambda x: x['views'], reverse=True)
         return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
+        
     except Exception as e: return None, str(e)
 
+# --- TOP 100 CANAIS (HALL DA FAMA) - AGORA SEGURO ---
 def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
     if not api_key: return []
     q = query_especifica if query_especifica else ""
@@ -139,7 +166,6 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
     
     for _ in range(2): 
         url = "https://www.googleapis.com/youtube/v3/search"
-        # REMOVIDO: relevanceLanguage (Evita erro de 0 resultados)
         params = { "part": "snippet", "q": q, "type": "channel", "regionCode": pais_code, "maxResults": 50, "key": api_key }
         if next_page_token: params["pageToken"] = next_page_token
         
@@ -148,7 +174,7 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
             data = r.json()
             if "items" not in data: break
             
-            ids = [i["id"]["channelId"] for i in data["items"]]
+            ids = [i["id"]["channelId"] for i in data["items"] if "channelId" in i["id"]]
             if not ids: break
             
             url_stats = "https://www.googleapis.com/youtube/v3/channels"
@@ -156,23 +182,28 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
             stats_data = r_stats.json().get("items", [])
             
             for c in stats_data:
-                stats = c["statistics"]
-                snippet = c["snippet"]
+                # 5. USO SEGURO DO .get() PARA CANAIS
+                stats = c.get("statistics", {})
+                snippet = c.get("snippet", {})
+                
                 subs = int(stats.get("subscriberCount", 0))
                 views = int(stats.get("viewCount", 0))
                 video_count = int(stats.get("videoCount", 0))
+                
                 if subs > 1000:
                     canais_encontrados.append({
-                        "Canal": snippet["title"],
+                        "Canal": snippet.get("title", "Sem Nome"),
                         "Inscritos": subs,
                         "Total Views": views,
                         "Vídeos": video_count,
-                        "Criação": snippet["publishedAt"][:10],
+                        "Criação": snippet.get("publishedAt", "")[:10],
                         "Link": f"https://www.youtube.com/channel/{c['id']}"
                     })
+            
             next_page_token = data.get("nextPageToken")
             if not next_page_token: break
         except: break
+    
     canais_encontrados.sort(key=lambda x: x["Total Views"], reverse=True)
     return canais_encontrados
 
@@ -182,7 +213,8 @@ def buscar_top_videos(channel_id, api_key):
     params = { "key": api_key, "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": data.isoformat("T")+"Z", "type": "video", "maxResults": 5 }
     try:
         r = requests.get("https://www.googleapis.com/youtube/v3/search", params=params)
-        return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in r.json().get("items", [])]
+        items = r.json().get("items", [])
+        return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in items]
     except: return []
 
 def buscar_dados_youtube(nicho, api_key):
@@ -191,14 +223,16 @@ def buscar_dados_youtube(nicho, api_key):
         r = requests.get("https://www.googleapis.com/youtube/v3/search", params={"part":"snippet", "q":nicho, "type":"channel", "key":api_key, "maxResults":20})
         d = r.json()
         if "items" not in d: return [], None
-        ids = ",".join([i["id"]["channelId"] for i in d["items"]])
+        ids = ",".join([i["id"]["channelId"] for i in d["items"] if "channelId" in i["id"]])
         s_r = requests.get("https://www.googleapis.com/youtube/v3/channels", params={"part":"statistics", "id":ids, "key":api_key})
-        s_map = {i["id"]: i["statistics"] for i in s_r.json().get("items", [])}
+        s_map = {i["id"]: i.get("statistics", {}) for i in s_r.json().get("items", [])}
         res = []
         for i in d["items"]:
             cid = i["id"]["channelId"]
             s = s_map.get(cid, {})
-            v, sub, vid = int(s.get("viewCount",0)), int(s.get("subscriberCount",0)), int(s.get("videoCount",0))
+            v = int(s.get("viewCount",0))
+            sub = int(s.get("subscriberCount",0))
+            vid = int(s.get("videoCount",0))
             media = v/vid if vid > 0 else 0
             gold = True if (0 < vid <= 60 and sub >= 1000 and media > 2000) else False
             res.append({"nome":i["snippet"]["title"], "inscritos":sub, "total_videos":vid, "media_views":media, "e_ouro":gold, "link":f"https://www.youtube.com/channel/{cid}", "id":cid})
@@ -331,7 +365,7 @@ def app_principal():
                             hide_index=True
                         )
                     else:
-                        st.warning("Não encontramos canais grandes neste nicho/país específico.")
+                        st.warning("Não encontramos canais grandes específicos deste nicho neste país (ou a API limitou a busca).")
 
                 elif erro: st.error(erro)
 

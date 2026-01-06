@@ -16,16 +16,23 @@ st.set_page_config(page_title="Blueberry Finder AI", page_icon="🫐", layout="w
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
     <style>
+    /* 1. FUNDO E GERAL */
     .stApp { background: linear-gradient(135deg, #f3e7e9 0%, #e3eeff 100%, #e8dbfc 100%); background-attachment: fixed; }
     header[data-testid="stHeader"] { background: transparent; }
     h1, h2, h3 { font-family: 'Inter', sans-serif; color: #3d3563 !important; font-weight: 700; }
     p, label, span, div, caption { color: #544a85 !important; }
+    
+    /* 2. CARDS (Vidro) */
     .gold-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: all 0.4s ease; }
     .gold-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(139, 92, 246, 0.25); border-color: #8b5cf6; }
     .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px; }
+    
+    /* 3. INPUTS & BUTTONS */
     .stTextInput input, .stSelectbox div[data-baseweb="select"] { background-color: rgba(255, 255, 255, 0.9) !important; border: 2px solid #ddd6fe !important; color: #3d3563 !important; border-radius: 18px !important; }
     div[data-testid="stFormSubmitButton"] button, div[data-testid="stButton"] button { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); color: #ffffff !important; font-weight: 700 !important; border: none; padding: 14px 28px; border-radius: 50px; width: 100%; box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4); transition: all 0.3s ease; }
     div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stButton"] button:hover { transform: scale(1.05); background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%); }
+    
+    /* 4. EXIBIÇÃO DE DADOS */
     .trend-tag { display: inline-block; background: #eaddff; color: #3d3563; padding: 5px 12px; border-radius: 15px; margin: 3px; font-size: 12px; font-weight: 600; }
     .video-card { background:rgba(255,255,255,0.6); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid #eaddff; display:flex; gap:10px; transition: all 0.3s ease; }
     .video-card:hover { background: white; transform: scale(1.02); border-color: #d946ef; }
@@ -34,38 +41,45 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- MAPA DE IDIOMAS (Opcional, mas útil para o futuro) ---
+# --- MAPA DE IDIOMAS ---
 def get_lang_code(pais_code):
     mapa = {
         "US": "en", "GB": "en", "CA": "en", "AU": "en",
         "BR": "pt", "PT": "pt",
-        "MX": "es", "ES": "es", "AR": "es",
-        "FR": "fr", "DE": "de", "IT": "it", "JP": "ja", "KR": "ko", "RU": "ru", "IN": "en"
+        "MX": "es", "ES": "es", "AR": "es", "CO": "es", "CL": "es",
+        "FR": "fr", "DE": "de", "IT": "it", "JP": "ja", "KR": "ko", "RU": "ru", "IN": "en",
+        "SE": "sv", "NO": "no", "DK": "da", "FI": "fi"
     }
     return mapa.get(pais_code, "en")
 
-# --- DICIONÁRIO MESTRE ---
+# --- DICIONÁRIO MESTRE (TODOS OS NICHOS) ---
 def get_nichos_dark():
     return {
         "🚀 GERAL (Top Trends)": None,
+        # GRUPO: PRÉ-HISTÓRIA & BIOLOGIA
         "🦖 Pré-História & Megafauna": "prehistoric animals|dinosaurs documentary|megafauna|ice age beasts|animais pré-históricos|monstros marinhos|bizarre animals|criaturas abissais|titanoboa|saber tooth tiger|animais extintos|paleontologia|jurassic world real|vida antes dos humanos",
         "🦑 Monstros Marinhos & Abissais": "deep sea creatures|mariana trench mystery|monsters of the deep|animais do fundo do mar|lula colossal|megalodon sightings|bloop sound|thalassophobia|ocean mysteries|biologia marinha bizarra|deepest part of ocean|animais abissais|sea monsters|estranhas criaturas",
         "🧬 Biologia & Evolução Bizarra": "evolutionary biology|weirdest animals|animais mais estranhos|human evolution documentary|microscopic world|vida microscopica|tardigrade|cell biology|dna secrets|parasitas bizarros|animal mutations|nature is metal|evolution mistakes|biologia explicada",
         "🦁 Batalhas Animais & Predadores": "predator vs prey|animal attacks|wildlife documentary|leia vs hiena|cobra gigante|animal battles|natureza selvagem|crocodilo ataque|eagle hunting|orca hunting|apex predators|mundo animal|documentario animais|vida selvagem",
+        # GRUPO: ERAS PERDIDAS
         "🏺 Mesopotâmia & Sumérios": "mesopotamia history|sumerians|anunnaki|ancient babylon|berço da civilização|fertile crescent|gilgamesh epic|origem da escrita|civilização sumeria|ziggurat|history of iraq ancient|cradle of civilization|antiga mesopotamia|codex hammurabi|assírios",
         "🔥 Idade da Pedra & Homens das Cavernas": "stone age documentary|paleolithic life|neolithic revolution|homens das cavernas|humanos primitivos|descoberta do fogo|cave paintings|ice age humans|hunter gatherer lifestyle|ferramentas de pedra|evolução humana|vida na pre historia|tribos antigas|ancestrais humanos",
         "🏰 Idade Média & Tempos Sombrios": "medieval history|middle ages documentary|black plague|tortura medieval|vida na idade media|crusades|cavaleiros medievais|feudalismo|castelos medievais|dark ages history|viking raids|templars history|historia medieval|peste negra|inquisicao",
+        # GRUPO: EMOCIONAL & DRAMA
         "😭 Histórias de Superação & Drama": "sad story overcoming|immigrant story|vida de imigrante|rich vs poor humiliation|humiliated by billionaire|rags to riches|crossing the border|latino struggle|volta por cima|sacrificio de mãe|father sacrifice|historia emocionante|hard life motivation|poor to rich|historia de superação",
+        # GRUPO: MISTÉRIO & MEDO
         "🔪 True Crime (Investigação)": "true crime documentary|investigação criminal|serial killer|cold cases|crimes não solucionados|forensic files|murder mystery|interrogation footage|casos criminais|desaparecimentos|missing persons|criminal psychology|crime scene|detective stories",
         "👻 Paranormal & Assustador": "ghost caught on camera|poltergeist video|scary stories|lendas urbanas|relatos sobrenaturais|haunted house|investigação paranormal|demon sighting|shadow people|terror real|skinwalker|creepy videos|medo real|espiritos filmados|paranormal activity",
         "👽 Ufologia & Alienígenas": "ufo sighting 2024|alien evidence|area 51 secrets|ovni avistamentos|extraterrestrial life|ancient aliens|abdução alienigena|nasa secrets|uap footage|contatos imediatos|alien autopsy|mars anomalies|secret space program|vida em outros planetas",
         "📼 Lost Media & Dark Web": "lost media iceberg|internet mysteries|dark web stories|deep web videos|arg horror|found footage|videos perturbadores|misterios da internet|cicada 3301|backrooms explained|liminal spaces|analog horror|midia perdida|arquivos secretos|creepy pasta",
         "🕵️ Mistérios Históricos": "unsolved mysteries history|jack the ripper|dyatlov pass|misterios da humanidade|atlantis found|triangulo das bermudas|manuscrito voynich|historical secrets|segredos do vaticano|forbidden history|arqueologia misteriosa|ancient enigmas|civilizações perdidas|teorias da conspiração|segredos ocultos",
+        # GRUPO: CONHECIMENTO & ENTRETENIMENTO
         "🎮 Gaming Dark & Lore": "gaming lore|video game mysteries|scary easter eggs|lost video games|fnaf lore|dark souls story|silent hill history|iceberg gaming|creepypasta games|banned video games|historia dos jogos|misterios dos games|jogos perdidos|segredos dos jogos",
         "⚽ Esportes (Lado Sombrio)": "sports tragedies|dark side of sports|athletes who lost everything|biggest sports scandals|f1 history|boxing legends|football rivalries|worst injuries in sports|corruption in sports|untold stories sports|tragedias no esporte|escandalos esportivos|historia do futebol",
         "🎬 Cinema & Significados Ocultos": "movie ending explained|hidden details in movies|dark disney theories|cinema psychology|film analysis|matrix philosophy|joker analysis|fight club meaning|mensagens subliminares|teorias da conspiracao filmes|final explicado|analise de filmes|segredos do cinema",
         "📚 Resumos de Livros & Big Ideas": "book summaries|visual book review|48 laws of power|rich dad poor dad|psychology books|self improvement books|business book summary|greatest books of all time|wisdom bread style|escaping ordinary style|philosophy books|financial education|resumo de livros",
         "🍔 História da Comida & Marcas": "food history|origin of brands|dark history of coca cola|mcdonalds secrets|forbidden foods|most expensive food|history of sugar|fast food secrets|kfc history|historia das marcas|origem dos alimentos|comidas proibidas|segredos fast food",
+        # GRUPO: OUTROS
         "📜 História Antiga (Geral)": "ancient civilizations|ancient egypt documentary|roma antiga|grecia antiga|persian empire|alexander the great|julius caesar|historia antiga|pharaohs secrets|pyramids construction|ancient technology|imperio romano|esparta|historia do mundo",
         "⚔️ Guerras & Batalhas": "world war 2 documentary|segunda guerra mundial|batalhas historicas|military strategy|napoleonic wars|vietnam war footage|guerra fria|tank battles|sniper stories|special forces history|grandes generais|war history|combat footage history|armas secretas|historia militar",
         "👑 Biografias de Grandes Líderes": "biography documentary|napoleon bonaparte|genghis khan|winston churchill|greatest leaders|life of alexander|nikola tesla biography|albert einstein life|figuras historicas|imperadores romanos|kings and queens|royal family secrets|dictators history|historia de vida",
@@ -86,14 +100,16 @@ def get_nichos_dark():
         "🔨 Satisfatório & Restauração": "oddly satisfying video|restoration rusty|carpet cleaning|pressure washing|videos satisfatorios|asmr cleaning|restauracao de relogios|knife restoration|shredding machine|hydraulic press|satisfying slime|kinetic sand|soap cutting|limpeza pesada|art restoration"
     }
 
-# --- FUNÇÕES DE BUSCA (VIRAIS) - AGORA SEGURAS ---
+# --- FUNÇÃO DE BUSCA VIRAIS (CORRIGIDA E BLINDADA) ---
 def buscar_radar_dark(pais_code, query_especifica, api_key):
     if not api_key: return None, "API Key necessária"
+    
+    # PEGA O IDIOMA (Opcional, removido filtro estrito para evitar 'Nenhum dado')
+    # lang_code = get_lang_code(pais_code)
     
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
     
-    # 1. Parâmetros Base
     params = {
         "part": "snippet,statistics",
         "regionCode": pais_code,
@@ -115,16 +131,16 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         resp = requests.get(url, params=params)
         dados = resp.json()
         
-        # 2. Tratamento de Erros da API
+        # TRATAMENTO DE ERRO REAL DA API
         if "error" in dados:
             return [], f"Erro API: {dados['error']['message']}"
         if "items" not in dados:
-            return [], "Nenhum dado encontrado (Tente outro nicho)"
+            return [], "Nenhum dado encontrado (Tente outro nicho ou país)"
         
-        # 3. Lógica para pegar Estatísticas (SEARCH não devolve stats, VIDEOS sim)
+        # Lógica para pegar Estatísticas com segurança
         dados_items = dados["items"]
         if query_especifica is not None:
-            # Se veio da busca, precisamos pegar os detalhes com videos.list
+            # Filtra apenas itens que têm videoId
             ids = ",".join([i["id"]["videoId"] for i in dados["items"] if "videoId" in i["id"]])
             if ids:
                 stats_resp = requests.get("https://www.googleapis.com/youtube/v3/videos", params={"part":"statistics,snippet", "id": ids, "key": api_key})
@@ -134,7 +150,7 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         videos_analisados = []
         
         for item in dados_items:
-            # 4. USO SEGURO DO .get() PARA EVITAR KEYERROR 'STATISTICS'
+            # BLINDAGEM CONTRA KEYERROR 'statistics'
             stats = item.get("statistics", {})
             snippet = item.get("snippet", {})
             tags = snippet.get("tags", [])
@@ -157,7 +173,7 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         
     except Exception as e: return None, str(e)
 
-# --- TOP 100 CANAIS (HALL DA FAMA) - AGORA SEGURO ---
+# --- FUNÇÃO TOP CANAIS (CORRIGIDA E BLINDADA) ---
 def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
     if not api_key: return []
     q = query_especifica if query_especifica else ""
@@ -182,7 +198,7 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
             stats_data = r_stats.json().get("items", [])
             
             for c in stats_data:
-                # 5. USO SEGURO DO .get() PARA CANAIS
+                # BLINDAGEM CONTRA KEYERROR
                 stats = c.get("statistics", {})
                 snippet = c.get("snippet", {})
                 

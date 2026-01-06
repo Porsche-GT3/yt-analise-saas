@@ -13,157 +13,82 @@ load_dotenv()
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Blueberry Finder AI", page_icon="🫐", layout="wide")
 
-# --- CSS "BLUEBERRY UNICORN THEME" (COM HOVER FX 3.0) 🦄🫐 ---
+# --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
     <style>
-    /* 1. FUNDO E GERAL */
     .stApp { background: linear-gradient(135deg, #f3e7e9 0%, #e3eeff 100%, #e8dbfc 100%); background-attachment: fixed; }
     header[data-testid="stHeader"] { background: transparent; }
     h1, h2, h3 { font-family: 'Inter', sans-serif; color: #3d3563 !important; font-weight: 700; }
     p, label, span, div, caption { color: #544a85 !important; }
     
-    /* 2. CARDS (Vidro) */
-    .gold-card { 
-        background: rgba(255, 255, 255, 0.85); 
-        backdrop-filter: blur(15px); 
-        border: 2px solid #c4b5fd; 
-        border-radius: 25px; 
-        padding: 25px; 
-        box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); 
-        margin-bottom: 25px; 
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
-    }
-    .gold-card:hover { 
-        transform: translateY(-8px); 
-        box-shadow: 0 20px 40px rgba(139, 92, 246, 0.25);
-        border-color: #8b5cf6;
-    }
-    .gold-badge { 
-        background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); 
-        color: white !important; padding: 6px 15px; border-radius: 20px; 
-        font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px; 
-        box-shadow: 0 4px 10px rgba(167, 139, 250, 0.4);
-    }
+    /* CARDS */
+    .gold-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: all 0.4s ease; }
+    .gold-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(139, 92, 246, 0.25); border-color: #8b5cf6; }
+    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px; }
     
-    /* 3. INPUTS */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] { 
-        background-color: rgba(255, 255, 255, 0.9) !important; 
-        border: 2px solid #ddd6fe !important; 
-        color: #3d3563 !important; 
-        border-radius: 18px !important; 
-        transition: all 0.3s ease;
-    }
-    .stTextInput input:focus, .stSelectbox div[data-baseweb="select"]:focus-within {
-        border-color: #8b5cf6 !important;
-        box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2) !important;
-        transform: scale(1.01);
-    }
-
-    /* 4. BOTÕES PRINCIPAIS */
-    div[data-testid="stFormSubmitButton"] button, div[data-testid="stButton"] button {
-        background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); 
-        color: #ffffff !important; 
-        font-weight: 700 !important; 
-        border: none; 
-        padding: 14px 28px; 
-        border-radius: 50px; 
-        width: 100%; 
-        box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        cursor: pointer;
-    }
-    div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stButton"] button:hover {
-        transform: scale(1.05) translateY(-2px); 
-        box-shadow: 0 15px 35px rgba(217, 70, 239, 0.6); 
-        background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%);
-    }
-    div[data-testid="stFormSubmitButton"] button:active {
-        transform: scale(0.95);
-    }
+    /* INPUTS & BUTTONS */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] { background-color: rgba(255, 255, 255, 0.9) !important; border: 2px solid #ddd6fe !important; color: #3d3563 !important; border-radius: 18px !important; }
+    div[data-testid="stFormSubmitButton"] button, div[data-testid="stButton"] button { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); color: #ffffff !important; font-weight: 700 !important; border: none; padding: 14px 28px; border-radius: 50px; width: 100%; box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4); transition: all 0.3s ease; }
+    div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stButton"] button:hover { transform: scale(1.05); background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%); }
     
-    /* 5. BOTÃO VER CANAL */
-    .visit-btn {
-        display: block;
-        width: 100%;
-        text-align: center;
-        padding: 12px;
-        background: white;
-        border: 2px solid #ddd6fe;
-        color: #6b6399;
-        border-radius: 15px;
-        text-decoration: none;
-        font-weight: 700;
-        transition: all 0.3s ease;
-        margin-top: 10px;
-    }
-    .visit-btn:hover {
-        background: #8b5cf6;
-        color: white !important;
-        border-color: #8b5cf6;
-        transform: translateY(-3px);
-        box-shadow: 0 5px 15px rgba(139, 92, 246, 0.3);
-    }
-
-    /* 6. TAGS & VÍDEOS */
-    .trend-tag { display: inline-block; background: #eaddff; color: #3d3563; padding: 5px 12px; border-radius: 15px; margin: 3px; font-size: 12px; font-weight: 600; transition:0.3s;}
-    .trend-tag:hover { background: #d8b4fe; cursor: default; transform: scale(1.1); }
-    
-    .video-card {
-        background:rgba(255,255,255,0.6); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid #eaddff; display:flex; gap:10px; transition: all 0.3s ease;
-    }
-    .video-card:hover {
-        background: white;
-        transform: scale(1.02);
-        border-color: #d946ef;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-    }
+    /* VIDEO & TAGS */
+    .trend-tag { display: inline-block; background: #eaddff; color: #3d3563; padding: 5px 12px; border-radius: 15px; margin: 3px; font-size: 12px; font-weight: 600; }
+    .video-card { background:rgba(255,255,255,0.6); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid #eaddff; display:flex; gap:10px; transition: all 0.3s ease; }
+    .video-card:hover { background: white; transform: scale(1.02); border-color: #d946ef; }
+    .visit-btn { display: block; width: 100%; text-align: center; padding: 12px; background: white; border: 2px solid #ddd6fe; color: #6b6399; border-radius: 15px; text-decoration: none; font-weight: 700; margin-top: 10px; transition:0.3s; }
+    .visit-btn:hover { background: #8b5cf6; color: white !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- DICIONÁRIO MESTRE (AGORA COM 9 GRUPOS) ---
+# --- DICIONÁRIO MESTRE (TODOS OS NICHOS) ---
 def get_nichos_dark():
     return {
         "🚀 GERAL (Top Trends)": None,
-        
-        # --- NOVO GRUPO 8: ENTRETENIMENTO & CULTURA POP ---
-        "🎮 Gaming Dark & Lore": "gaming lore|video game mysteries|scary easter eggs|lost video games|fnaf lore|dark souls story|silent hill history|iceberg gaming|creepypasta games|banned video games|historia dos jogos|misterios dos games|jogos perdidos|segredos dos jogos|gaming documentary",
-        "⚽ Esportes (Lado Sombrio)": "sports tragedies|dark side of sports|athletes who lost everything|biggest sports scandals|f1 history|boxing legends|football rivalries|worst injuries in sports|corruption in sports|untold stories sports|tragedias no esporte|escandalos esportivos|historia do futebol|atletas falidos|documentario esporte",
-        "🎬 Cinema & Significados Ocultos": "movie ending explained|hidden details in movies|dark disney theories|cinema psychology|film analysis|matrix philosophy|joker analysis|fight club meaning|mensagens subliminares|teorias da conspiracao filmes|final explicado|analise de filmes|segredos do cinema|easter eggs movies|movie symbolism",
-
-        # --- NOVO GRUPO 9: CONHECIMENTO & CURIOSIDADES ---
-        "📚 Resumos de Livros & Big Ideas": "book summaries|visual book review|48 laws of power|rich dad poor dad|psychology books|self improvement books|business book summary|greatest books of all time|wisdom bread style|escaping ordinary style|philosophy books|financial education|livros de desenvolvimento pessoal|resumo de livros|livros de negocios",
-        "🍔 História da Comida & Marcas": "food history|origin of brands|dark history of coca cola|mcdonalds secrets|forbidden foods|most expensive food|history of sugar|fast food secrets|kfc history|historia das marcas|origem dos alimentos|comidas proibidas|segredos fast food|historia da comida|industrial food secrets",
-
-        # --- GRUPO: PRÉ-HISTÓRIA & BIOLOGIA ---
-        "🦖 Pré-História & Megafauna": "prehistoric animals|dinosaurs documentary|megafauna|ice age beasts|animais pré-históricos|monstros marinhos|bizarre animals|criaturas abissais|evolution of whales|titanoboa|saber tooth tiger|animais extintos|paleontologia|jurassic world real|vida antes dos humanos",
-        "🦑 Monstros Marinhos & Abissais": "deep sea creatures|mariana trench mystery|monsters of the deep|animais do fundo do mar|lula colossal|megalodon sightings|bloop sound|criaturas assustadoras oceano|thalassophobia|ocean mysteries|biologia marinha bizarra|deepest part of ocean|animais abissais|sea monsters|estranhas criaturas",
-        "🧬 Biologia & Evolução Bizarra": "evolutionary biology|weirdest animals|animais mais estranhos|human evolution documentary|microscopic world|vida microscopica|tardigrade|cell biology|dna secrets|parasitas bizarros|animal mutations|nature is metal|evolution mistakes|biologia explicada|reino animal batalhas",
-        "🦁 Batalhas Animais & Predadores": "predator vs prey|animal attacks|wildlife documentary|leia vs hiena|cobra gigante|animal battles|natureza selvagem|crocodilo ataque|eagle hunting|orca hunting|apex predators|mundo animal|documentario animais|vida selvagem|sobrevivencia animal",
-
-        # --- GRUPO: ERAS PERDIDAS ---
+        # GRUPO: PRÉ-HISTÓRIA & BIOLOGIA
+        "🦖 Pré-História & Megafauna": "prehistoric animals|dinosaurs documentary|megafauna|ice age beasts|animais pré-históricos|monstros marinhos|bizarre animals|criaturas abissais|titanoboa|saber tooth tiger|animais extintos|paleontologia|jurassic world real|vida antes dos humanos",
+        "🦑 Monstros Marinhos & Abissais": "deep sea creatures|mariana trench mystery|monsters of the deep|animais do fundo do mar|lula colossal|megalodon sightings|bloop sound|thalassophobia|ocean mysteries|biologia marinha bizarra|deepest part of ocean|animais abissais|sea monsters|estranhas criaturas",
+        "🧬 Biologia & Evolução Bizarra": "evolutionary biology|weirdest animals|animais mais estranhos|human evolution documentary|microscopic world|vida microscopica|tardigrade|cell biology|dna secrets|parasitas bizarros|animal mutations|nature is metal|evolution mistakes|biologia explicada",
+        "🦁 Batalhas Animais & Predadores": "predator vs prey|animal attacks|wildlife documentary|leia vs hiena|cobra gigante|animal battles|natureza selvagem|crocodilo ataque|eagle hunting|orca hunting|apex predators|mundo animal|documentario animais|vida selvagem",
+        # GRUPO: ERAS PERDIDAS
         "🏺 Mesopotâmia & Sumérios": "mesopotamia history|sumerians|anunnaki|ancient babylon|berço da civilização|fertile crescent|gilgamesh epic|origem da escrita|civilização sumeria|ziggurat|history of iraq ancient|cradle of civilization|antiga mesopotamia|codex hammurabi|assírios",
-        "🔥 Idade da Pedra & Homens das Cavernas": "stone age documentary|paleolithic life|neolithic revolution|homens das cavernas|humanos primitivos|descoberta do fogo|cave paintings|ice age humans|hunter gatherer lifestyle|ferramentas de pedra|evolução humana|vida na pre historia|tribos antigas|ancestrais humanos|origem do homem",
+        "🔥 Idade da Pedra & Homens das Cavernas": "stone age documentary|paleolithic life|neolithic revolution|homens das cavernas|humanos primitivos|descoberta do fogo|cave paintings|ice age humans|hunter gatherer lifestyle|ferramentas de pedra|evolução humana|vida na pre historia|tribos antigas|ancestrais humanos",
         "🏰 Idade Média & Tempos Sombrios": "medieval history|middle ages documentary|black plague|tortura medieval|vida na idade media|crusades|cavaleiros medievais|feudalismo|castelos medievais|dark ages history|viking raids|templars history|historia medieval|peste negra|inquisicao",
-        
-        # --- OUTROS NICHOS MANTIDOS ---
+        # GRUPO: EMOCIONAL & DRAMA
         "😭 Histórias de Superação & Drama": "sad story overcoming|immigrant story|vida de imigrante|rich vs poor humiliation|humiliated by billionaire|rags to riches|crossing the border|latino struggle|volta por cima|sacrificio de mãe|father sacrifice|historia emocionante|hard life motivation|poor to rich|historia de superação",
-        "🔪 True Crime (Investigação)": "true crime documentary|investigação criminal|serial killer|cold cases|crimes não solucionados|forensic files|murder mystery|interrogation footage|casos criminais|desaparecimentos|missing persons|criminal psychology|crime scene|detective stories|policia investigação",
+        # GRUPO: MISTÉRIO & MEDO
+        "🔪 True Crime (Investigação)": "true crime documentary|investigação criminal|serial killer|cold cases|crimes não solucionados|forensic files|murder mystery|interrogation footage|casos criminais|desaparecimentos|missing persons|criminal psychology|crime scene|detective stories",
         "👻 Paranormal & Assustador": "ghost caught on camera|poltergeist video|scary stories|lendas urbanas|relatos sobrenaturais|haunted house|investigação paranormal|demon sighting|shadow people|terror real|skinwalker|creepy videos|medo real|espiritos filmados|paranormal activity",
-        "👽 Ufologia & Alienígenas": "ufo sighting 2024|alien evidence|area 51 secrets|ovni avistamentos|extraterrestrial life|ancient aliens|abdução alienigena|nasa secrets|uap footage|contatos imediatos|alien autopsy|mars anomalies|secret space program|vida em outros planetas|universo misterioso",
+        "👽 Ufologia & Alienígenas": "ufo sighting 2024|alien evidence|area 51 secrets|ovni avistamentos|extraterrestrial life|ancient aliens|abdução alienigena|nasa secrets|uap footage|contatos imediatos|alien autopsy|mars anomalies|secret space program|vida em outros planetas",
+        "📼 Lost Media & Dark Web": "lost media iceberg|internet mysteries|dark web stories|deep web videos|arg horror|found footage|videos perturbadores|misterios da internet|cicada 3301|backrooms explained|liminal spaces|analog horror|midia perdida|arquivos secretos|creepy pasta",
         "🕵️ Mistérios Históricos": "unsolved mysteries history|jack the ripper|dyatlov pass|misterios da humanidade|atlantis found|triangulo das bermudas|manuscrito voynich|historical secrets|segredos do vaticano|forbidden history|arqueologia misteriosa|ancient enigmas|civilizações perdidas|teorias da conspiração|segredos ocultos",
-        "📜 História Antiga (Geral)": "ancient civilizations|ancient egypt documentary|roma antiga|grecia antiga|persian empire|alexander the great|julius caesar|historia antiga|pharaohs secrets|pyramids construction|ancient technology|imperio romano|esparta|historia do mundo|grandes imperios",
+        # GRUPO: CONHECIMENTO & ENTRETENIMENTO
+        "🎮 Gaming Dark & Lore": "gaming lore|video game mysteries|scary easter eggs|lost video games|fnaf lore|dark souls story|silent hill history|iceberg gaming|creepypasta games|banned video games|historia dos jogos|misterios dos games|jogos perdidos|segredos dos jogos",
+        "⚽ Esportes (Lado Sombrio)": "sports tragedies|dark side of sports|athletes who lost everything|biggest sports scandals|f1 history|boxing legends|football rivalries|worst injuries in sports|corruption in sports|untold stories sports|tragedias no esporte|escandalos esportivos|historia do futebol",
+        "🎬 Cinema & Significados Ocultos": "movie ending explained|hidden details in movies|dark disney theories|cinema psychology|film analysis|matrix philosophy|joker analysis|fight club meaning|mensagens subliminares|teorias da conspiracao filmes|final explicado|analise de filmes|segredos do cinema",
+        "📚 Resumos de Livros & Big Ideas": "book summaries|visual book review|48 laws of power|rich dad poor dad|psychology books|self improvement books|business book summary|greatest books of all time|wisdom bread style|escaping ordinary style|philosophy books|financial education|resumo de livros",
+        "🍔 História da Comida & Marcas": "food history|origin of brands|dark history of coca cola|mcdonalds secrets|forbidden foods|most expensive food|history of sugar|fast food secrets|kfc history|historia das marcas|origem dos alimentos|comidas proibidas|segredos fast food",
+        # GRUPO: OUTROS
+        "📜 História Antiga (Geral)": "ancient civilizations|ancient egypt documentary|roma antiga|grecia antiga|persian empire|alexander the great|julius caesar|historia antiga|pharaohs secrets|pyramids construction|ancient technology|imperio romano|esparta|historia do mundo",
         "⚔️ Guerras & Batalhas": "world war 2 documentary|segunda guerra mundial|batalhas historicas|military strategy|napoleonic wars|vietnam war footage|guerra fria|tank battles|sniper stories|special forces history|grandes generais|war history|combat footage history|armas secretas|historia militar",
+        "👑 Biografias de Grandes Líderes": "biography documentary|napoleon bonaparte|genghis khan|winston churchill|greatest leaders|life of alexander|nikola tesla biography|albert einstein life|figuras historicas|imperadores romanos|kings and queens|royal family secrets|dictators history|historia de vida",
         "🙏 Histórias Bíblicas & Fé": "bible stories explained|book of enoch|angels and demons|historia biblica|apocalipse|genesis|old testament|life of jesus|profecias biblicas|nephilim|arca de noé|sodoma e gomorra|jerusalem history|milagres de jesus|biblical archaeology",
-        "🧠 Estoicismo & Filosofia": "stoicism for beginners|marcus aurelius quotes|seneca philosophy|filosofia de vida|controle emocional|sabedoria antiga|taoism explained|confucius quotes|nietzsche philosophy|plato allegory of the cave|socrates wisdom|art of war sun tzu|discipline mindset|filosofia estoica|mentalidade forte",
+        "🧠 Estoicismo & Filosofia": "stoicism for beginners|marcus aurelius quotes|seneca philosophy|filosofia de vida|controle emocional|sabedoria antiga|taoism explained|confucius quotes|nietzsche philosophy|plato allegory of the cave|socrates wisdom|art of war sun tzu|discipline mindset|filosofia estoica",
         "🚀 Espaço & Universo": "space documentary|james webb images|black hole sound|tamanho do universo|sistema solar|vida em marte|spacex launch|nasa discoveries|universe documentary|cosmic horror|time dilation|dark matter|nebulas|astronomia|curiosidades do espaço",
         "🤖 Inteligência Artificial": "ai news today|chatgpt 5|midjourney v6|ai tools for business|inteligencia artificial|futuro da ia|robots boston dynamics|ai taking over|novidades ia|automação|nvidia ai|openai sora|artificial general intelligence|ai avatar|tecnologia futura",
         "🤯 Fatos Alucinantes (Curiosidades)": "amazing facts|things you didn't know|fatos aleatorios|curiosidades do mundo|voce sabia|fatos interessantes|mind blowing facts|science facts|fatos historicos|curiosidades rapidas|top 10 fatos|listas curiosas|strange facts|fatos bizarros|conhecimento geral",
         "💊 O Que Aconteceria Se...": "what if scenarios|what if earth stopped|e se o sol apagasse|what if dinosaurs survived|e se|cenarios hipoteticos|ciencia explicada|teoria do caos|efeito borboleta|what if history|e se a alemanha ganhasse|what if humans disappeared|future timeline|ciencia curiosa|experiencias mentais",
         "💰 Luxo & Vida de Bilionário": "billionaire lifestyle|mega mansions tour|superyachts|vida de luxo|carros de luxo|most expensive things|dubai lifestyle|monaco luxury|billionaire motivation|luxo extremo|mansões incriveis|private jet|relogios caros|estilo de vida rico|old money aesthetic",
-        "🌧️ ASMR & Sons de Chuva": "rain sounds for sleep|thunderstorm black screen|heavy rain|white noise|sons de chuva|barulho de chuva|sleep music|sons da natureza|ocean waves|fireplace sound|relaxing sounds|insomnia relief|deep sleep|sons para dormir|ambiente relaxante"
+        "📈 Histórias de Marcas & Magnates": "business documentary|company downfall|how they make money|historia das marcas|historia mcdonalds|apple history|elon musk story|jeff bezos|warren buffett|marketing strategies|fracassos de empresas|ascensão e queda|business lessons|biografia empreendedores",
+        "🪙 Cripto & Mercado Financeiro": "crypto news|bitcoin prediction|investing for beginners|bolsa de valores|day trade|analise grafica|ethereum|altcoins|criptomoedas|financial crisis|economia mundial|dolar hoje|investimentos|educação financeira|dividendos",
+        "💸 Renda Extra & Marketing Digital": "passive income ideas|make money online|dropshipping results|marketing digital|afiliados|chatgpt money|youtube automation|print on demand|renda extra|trabalhar em casa|freelancer tips|side hustles|dinheiro online|ecommerce",
+        "🌧️ ASMR & Sons de Chuva": "rain sounds for sleep|thunderstorm black screen|heavy rain|white noise|sons de chuva|barulho de chuva|sleep music|sons da natureza|ocean waves|fireplace sound|relaxing sounds|insomnia relief|deep sleep|sons para dormir|ambiente relaxante",
+        "✨ Frequências & Música Lofi": "lofi hip hop study|432hz healing|binaural beats|focus music|musica para estudar|relaxing jazz|musica ambiente|frequency healing|stress relief music|musica calma|piano relaxante|ambient music|study beats|musica para trabalhar|soundscape",
+        "🥒 Saúde Natural & Corpo": "natural remedies|benefits of ginger|foods that kill diabetes|curas naturais|dicas de saude|perder peso rapido|exercicios em casa|home workout|intermittent fasting|jejum intermitente|alimentos saudaveis|longevidade|biohacking|rotina saudavel|corpo humano",
+        "🌲 Sobrevivência & Bushcraft": "bushcraft shelter|solo camping rain|survival skills|acampamento solo|construção na floresta|off grid living|primitive technology|sobrevivencialismo|camping in rain|cooking in forest|vida na natureza|cabana na floresta|camping asmr|natureza selvagem|wild camping",
+        "🔨 Satisfatório & Restauração": "oddly satisfying video|restoration rusty|carpet cleaning|pressure washing|videos satisfatorios|asmr cleaning|restauracao de relogios|knife restoration|shredding machine|hydraulic press|satisfying slime|kinetic sand|soap cutting|limpeza pesada|art restoration"
     }
 
-# --- FUNÇÕES ---
+# --- FUNÇÕES DE BUSCA (VIRAIS) ---
 def buscar_radar_dark(pais_code, query_especifica, api_key):
     if not api_key: return None, "API Key necessária"
     data_inicio = datetime.datetime.now() - timedelta(days=30)
@@ -195,6 +120,68 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
     except Exception as e: return None, str(e)
 
+# --- NOVA FUNÇÃO: TOP 100 CANAIS (HALL DA FAMA) ---
+def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
+    if not api_key: return []
+    # Se for "Geral", deixamos vazio para pegar os top do país
+    q = query_especifica if query_especifica else ""
+    
+    canais_encontrados = []
+    next_page_token = None
+    
+    # Fazemos 2 chamadas para tentar chegar perto de 100 resultados (50 por pág)
+    for _ in range(2): 
+        url = "https://www.googleapis.com/youtube/v3/search"
+        params = {
+            "part": "snippet",
+            "q": q,
+            "type": "channel",
+            "regionCode": pais_code,
+            "maxResults": 50,
+            "key": api_key
+        }
+        if next_page_token: params["pageToken"] = next_page_token
+        
+        try:
+            r = requests.get(url, params=params)
+            data = r.json()
+            if "items" not in data: break
+            
+            ids = [i["id"]["channelId"] for i in data["items"]]
+            
+            # Pega estatísticas detalhadas
+            url_stats = "https://www.googleapis.com/youtube/v3/channels"
+            r_stats = requests.get(url_stats, params={"part": "statistics,snippet", "id": ",".join(ids), "key": api_key})
+            stats_data = r_stats.json().get("items", [])
+            
+            for c in stats_data:
+                stats = c["statistics"]
+                snippet = c["snippet"]
+                subs = int(stats.get("subscriberCount", 0))
+                views = int(stats.get("viewCount", 0))
+                video_count = int(stats.get("videoCount", 0))
+                
+                # FILTRO: Apenas canais validados (>1k subs)
+                if subs > 1000:
+                    canais_encontrados.append({
+                        "Canal": snippet["title"],
+                        "Inscritos": subs,
+                        "Total Views": views,
+                        "Vídeos": video_count,
+                        "Criação": snippet["publishedAt"][:10],
+                        "Link": f"https://www.youtube.com/channel/{c['id']}"
+                    })
+            
+            next_page_token = data.get("nextPageToken")
+            if not next_page_token: break
+            
+        except: break
+    
+    # Ordena por Total Views (os maiores primeiro)
+    canais_encontrados.sort(key=lambda x: x["Total Views"], reverse=True)
+    return canais_encontrados
+
+# --- FUNÇÕES DE BUSCA POR NICHO (Modo 1) ---
 def buscar_top_videos(channel_id, api_key):
     data = datetime.datetime.now() - timedelta(days=45)
     params = { "key": api_key, "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": data.isoformat("T")+"Z", "type": "video", "maxResults": 5 }
@@ -289,15 +276,10 @@ def app_principal():
     elif modo == "🌍 Radar Global (Dark)":
         st.markdown("<p style='text-align:center;'>Espione os nichos mais lucrativos do mundo <b>AGORA</b> (Últimos 30 dias).</p>", unsafe_allow_html=True)
         paises = {
-            "🇺🇸 Estados Unidos": "US",
-            "🇬🇧 Reino Unido": "GB", # Tier 1
-            "🇨🇦 Canadá": "CA",      # Tier 1
-            "🇦🇺 Austrália": "AU",   # Tier 1
-            "🇸🇪 Suécia": "SE", "🇳🇴 Noruega": "NO", "🇩🇰 Dinamarca": "DK", "🇫🇮 Finlândia": "FI", "🇮🇸 Islândia": "IS", # Escandinavia
-            "🇲🇽 México": "MX",      # LatAm King
-            "🇩🇪 Alemanha": "DE", "🇫🇷 França": "FR", "🇪🇸 Espanha": "ES",
-            "🇧🇷 Brasil": "BR", "🇵🇹 Portugal": "PT",
-            "🇯🇵 Japão": "JP", "🇰🇷 Coreia do Sul": "KR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN"
+            "🇺🇸 Estados Unidos": "US", "🇬🇧 Reino Unido": "GB", "🇨🇦 Canadá": "CA", "🇦🇺 Austrália": "AU",
+            "🇸🇪 Suécia": "SE", "🇳🇴 Noruega": "NO", "🇩🇰 Dinamarca": "DK", "🇫🇮 Finlândia": "FI", "🇮🇸 Islândia": "IS",
+            "🇲🇽 México": "MX", "🇩🇪 Alemanha": "DE", "🇫🇷 França": "FR", "🇪🇸 Espanha": "ES",
+            "🇧🇷 Brasil": "BR", "🇵🇹 Portugal": "PT", "🇯🇵 Japão": "JP", "🇰🇷 Coreia do Sul": "KR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN"
         }
         filtros_dict = get_nichos_dark()
         
@@ -307,10 +289,15 @@ def app_principal():
         c3.write(""); c3.write("")
         key_r = api_key_env if api_key_env else st.text_input("API Key", type="password")
         
-        if c3.button("📡 Escanear Nicho", type="primary"):
+        if c3.button("📡 Escanear Nicho & Canais", type="primary"):
             query = filtros_dict[categoria_nome]
             with st.spinner(f"Varrendo YouTube {paises[pais]} atrás de '{categoria_nome}'..."):
+                # 1. Busca Vídeos Virais (Já existia)
                 res, erro = buscar_radar_dark(paises[pais], query, key_r)
+                
+                # 2. Busca Top Canais (NOVO!)
+                top_canais = buscar_top_canais_nicho(paises[pais], query, key_r)
+
                 if res:
                     videos = res["videos"]
                     tags = res["top_assuntos"]
@@ -318,8 +305,9 @@ def app_principal():
                     st.subheader(f"🔥 Tags em Alta: {categoria_nome}")
                     html_tags = "".join([f"<span class='trend-tag'>#{t[0].upper()} ({t[1]})</span>" for t in tags if len(t[0])>3])
                     st.markdown(f"<div style='background:white; padding:20px; border-radius:15px; border:1px solid #c4b5fd;'>{html_tags}</div>", unsafe_allow_html=True)
+                    
                     st.divider()
-                    st.subheader(f"📹 Top 50 Vídeos Recentes ({len(videos)})")
+                    st.subheader(f"📹 Top 50 Vídeos Recentes (Viralizou Agora)")
                     c_v1, c_v2 = st.columns(2)
                     for i, v in enumerate(videos):
                         with (c_v1 if i%2==0 else c_v2):
@@ -333,6 +321,27 @@ def app_principal():
                                         <a href="{v['link']}" target="_blank" style="font-size:11px; color:#8b5cf6; font-weight:700;">Assistir ↗</a>
                                     </div>
                                 </div>""", unsafe_allow_html=True)
+                    
+                    # 3. EXIBE A TABELA DE CANAIS TOP 100
+                    st.divider()
+                    st.markdown(f"<h3 style='color:#3d3563'>🏆 Top 100 Canais - Hall da Fama ({categoria_nome})</h3>", unsafe_allow_html=True)
+                    st.caption("Canais monetizados (>1k subs) ordenados por autoridade (Total Views). Clique em 'Criação' para ver os mais novos.")
+                    
+                    if top_canais:
+                        df_canais = pd.DataFrame(top_canais)
+                        st.dataframe(
+                            df_canais,
+                            column_config={
+                                "Link": st.column_config.LinkColumn("Link", display_text="Acessar ↗"),
+                                "Total Views": st.column_config.NumberColumn("Total Views", format="%d"),
+                                "Inscritos": st.column_config.NumberColumn("Inscritos", format="%d")
+                            },
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                    else:
+                        st.warning("Não encontramos canais grandes específicos deste nicho neste país (ou a API limitou a busca).")
+
                 elif erro: st.error(erro)
 
 if st.session_state['logado']: app_principal()

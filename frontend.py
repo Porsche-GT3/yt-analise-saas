@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v2.0", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v2.1", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -76,7 +76,18 @@ def get_nichos_dark():
         "🔨 Satisfatório & Restauração": "oddly satisfying video|restoration rusty|carpet cleaning|pressure washing|videos satisfatorios|asmr cleaning|restauracao de relogios|knife restoration|shredding machine|hydraulic press|satisfying slime|kinetic sand|soap cutting|limpeza pesada|art restoration"
     }
 
-# --- FUNÇÃO DE BUSCA VIRAIS (AGORA 100% SEGURA COM TRY/EXCEPT) ---
+# --- FUNÇÃO DE SEGURANÇA PARA EXTRAIR DADOS ---
+def safe_extract_stats(item):
+    """Extrai estatísticas com segurança, retornando 0 se falhar."""
+    try:
+        # Se o item é um resultado de busca, ele não tem 'statistics' diretamente
+        # Se for um item de 'videos.list', ele tem.
+        stats = item.get("statistics", {})
+        return int(stats.get("viewCount", 0))
+    except:
+        return 0
+
+# --- FUNÇÕES DE BUSCA ---
 def buscar_radar_dark(pais_code, query_especifica, api_key):
     if not api_key: return None, "API Key necessária"
     
@@ -84,7 +95,7 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
     published_after = data_inicio.isoformat("T") + "Z"
     
     params = {
-        "part": "snippet,statistics",
+        "part": "snippet",
         "regionCode": pais_code,
         "maxResults": 50,
         "key": api_key
@@ -93,6 +104,7 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
     if query_especifica is None:
         url = "https://www.googleapis.com/youtube/v3/videos"
         params["chart"] = "mostPopular"
+        params["part"] += ",statistics" # Para mostPopular já vem com stats
     else:
         url = "https://www.googleapis.com/youtube/v3/search"
         params["q"] = query_especifica
@@ -111,11 +123,10 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         
         dados_items = dados["items"]
         
-        # Se for busca, pega estatísticas extras
+        # SE FOR BUSCA (Search), PRECISAMOS BUSCAR OS DETALHES PARA TER 'STATISTICS'
         if query_especifica is not None:
-            # Filtra IDs válidos com segurança
             ids_list = []
-            for i in dados["items"]:
+            for i in dados_items:
                 if isinstance(i["id"], dict) and "videoId" in i["id"]:
                     ids_list.append(i["id"]["videoId"])
                 elif isinstance(i["id"], str):
@@ -123,29 +134,27 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
             
             if ids_list:
                 ids_str = ",".join(ids_list)
+                # Chama videos.list para pegar as views reais
                 stats_resp = requests.get("https://www.googleapis.com/youtube/v3/videos", params={"part":"statistics,snippet", "id": ids_str, "key": api_key})
-                resp_json = stats_resp.json()
-                if "items" in resp_json:
-                    dados_items = resp_json["items"]
+                stats_json = stats_resp.json()
+                if "items" in stats_json:
+                    dados_items = stats_json["items"]
         
         todos_tags = []
         videos_analisados = []
         
         for item in dados_items:
-            # --- BLINDAGEM NUCLEAR CONTRA ERROS ---
             try:
-                stats = item.get("statistics", {})
                 snippet = item.get("snippet", {})
                 tags = snippet.get("tags", [])
-                
                 if tags: todos_tags.extend([t.lower() for t in tags])
                 
-                view_count = int(stats.get("viewCount", 0))
+                # USA A FUNÇÃO DE SEGURANÇA AQUI
+                view_count = safe_extract_stats(item)
                 
-                # Tratamento de ID (pode ser string ou dict dependendo da origem)
+                # Tratamento de ID seguro
                 vid_id = item.get("id")
-                if isinstance(vid_id, dict):
-                    vid_id = vid_id.get("videoId", "")
+                if isinstance(vid_id, dict): vid_id = vid_id.get("videoId", "")
                 
                 videos_analisados.append({ 
                     "titulo": snippet.get("title", "Sem Título"), 
@@ -154,15 +163,13 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
                     "thumb": snippet.get("thumbnails", {}).get("high", {}).get("url", ""), 
                     "link": f"https://www.youtube.com/watch?v={vid_id}" 
                 })
-            except:
-                continue # Se der erro num vídeo específico, pula para o próximo
+            except: continue
             
         videos_analisados.sort(key=lambda x: x['views'], reverse=True)
         return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
         
-    except Exception as e: return None, str(e)
+    except Exception as e: return None, f"Erro interno: {str(e)}"
 
-# --- TOP 100 CANAIS (HALL DA FAMA) - BLINDADO ---
 def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
     if not api_key: return []
     q = query_especifica if query_especifica else ""
@@ -190,7 +197,6 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
                 try:
                     stats = c.get("statistics", {})
                     snippet = c.get("snippet", {})
-                    
                     subs = int(stats.get("subscriberCount", 0))
                     views = int(stats.get("viewCount", 0))
                     video_count = int(stats.get("videoCount", 0))
@@ -213,13 +219,13 @@ def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
     canais_encontrados.sort(key=lambda x: x["Total Views"], reverse=True)
     return canais_encontrados
 
-# --- MODO 1: BUSCA POR NICHO (MANTIDO E BLINDADO) ---
 def buscar_top_videos(channel_id, api_key):
     try:
         data = datetime.datetime.now() - timedelta(days=45)
         params = { "key": api_key, "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": data.isoformat("T")+"Z", "type": "video", "maxResults": 5 }
         r = requests.get("https://www.googleapis.com/youtube/v3/search", params=params)
-        return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in r.json().get("items", [])]
+        items = r.json().get("items", [])
+        return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in items]
     except: return []
 
 def buscar_dados_youtube(nicho, api_key):
@@ -251,7 +257,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v2.0</h2><p>Login Admin</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v2.1</h2><p>Login Admin</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -267,7 +273,7 @@ def app_principal():
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v2.0</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v2.1</h1>", unsafe_allow_html=True)
 
     # MODO 1: BUSCA
     if modo == "🔍 Busca por Nicho":

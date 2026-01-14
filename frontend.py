@@ -249,3 +249,149 @@ def buscar_dados_youtube(nicho, keys_str):
     
     for i in d["items"]:
         try:
+            cid = i["id"]["channelId"]
+            s = s_map.get(cid, {})
+            v = int(s.get("viewCount",0))
+            sub = int(s.get("subscriberCount",0))
+            vid = int(s.get("videoCount",0))
+            
+            snippet = i.get("snippet", {})
+            pub_str = snippet.get("publishedAt", "")
+            if pub_str:
+                dt = datetime.datetime.strptime(pub_str, "%Y-%m-%dT%H:%M:%SZ")
+                days = (datetime.datetime.now() - dt).days
+            else: days = 9999
+            
+            media = v/vid if vid > 0 else 0
+            
+            if vid > 0: score = media / sub if sub > 0 else 0
+            else: score = 0
+            
+            # --- GOLDEN RULE APLICADA ---
+            # Menos de 50 vídeos + Crescimento Alto + Menos de 120 dias
+            gold = True if (score > 0.5 and vid <= 50 and days <= 120) else False
+            
+            if vid <= 100:
+                res.append({
+                    "nome": i["snippet"]["title"], 
+                    "inscritos": sub, 
+                    "total_videos": vid, 
+                    "media_views": int(media),
+                    "viral_score": round(score, 2),
+                    "e_ouro": gold, 
+                    "link": f"https://www.youtube.com/channel/{cid}", 
+                    "id": cid
+                })
+        except: continue
+        
+    res.sort(key=lambda x: x['viral_score'], reverse=True)
+    return res, None
+
+# --- LOGIN ---
+if 'logado' not in st.session_state: st.session_state['logado'] = False
+def tela_login():
+    c1,c2,c3=st.columns([1,1,1])
+    with c2:
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.9</h2><p>Stable Gems Edition (Max 50 Vídeos)</p></div><br>", unsafe_allow_html=True)
+        with st.form("l"):
+            u=st.text_input("User"); p=st.text_input("Pass", type="password")
+            if st.form_submit_button("🚀 Entrar"):
+                if u=="admin" and p=="1234": st.session_state['logado']=True; st.rerun()
+                else: st.error("Erro.")
+
+# --- APP ---
+def app_principal():
+    api_key_env = os.getenv("YOUTUBE_API_KEY")
+    with st.sidebar:
+        st.markdown("### Menu 🫐")
+        modo = st.radio("Navegação:", ["🔍 Busca por Nicho (Growth)", "🌍 Radar Global (Dark)"])
+        st.divider()
+        if st.button("Sair"): st.session_state['logado']=False; st.rerun()
+
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.9</h1>", unsafe_allow_html=True)
+
+    # MODO 1: BUSCA POR NICHO (GROWTH)
+    if modo == "🔍 Busca por Nicho (Growth)":
+        st.markdown("<p style='text-align:center;'>Encontre <b>Joias Raras</b> (Canais com menos de 50 vídeos explodindo).</p>", unsafe_allow_html=True)
+        with st.form("f1"):
+            c1,c2=st.columns([3,1])
+            k = api_key_env if api_key_env else c1.text_input("API Keys (Hydra)", type="password")
+            n = c1.text_input("Nicho", placeholder="Ex: Yoga...")
+            c2.write(""); c2.write("")
+            b = c2.form_submit_button("🔍 Buscar Gems")
+        
+        if b and n:
+            with st.spinner("Minerando canais recentes..."):
+                d, e = buscar_dados_youtube(n, k)
+                if d:
+                    df = pd.DataFrame(d)
+                    ouro = df[df['e_ouro']==True]
+                    st.divider()
+                    if not ouro.empty:
+                        st.success(f"Encontramos {len(ouro)} Canais GOLD (Menos de 50 vídeos + Viral)!")
+                        cols = st.columns(3)
+                        for i, r in ouro.reset_index().iterrows():
+                            with cols[i%3]:
+                                st.markdown(f"""
+                                <div class='gold-card'>
+                                    <span class='gold-badge'>💎 GEM {r['viral_score']}</span>
+                                    <h4>{r['nome']}</h4>
+                                    <p>📹 {r['total_videos']} vídeos | 👥 {r['inscritos']}</p>
+                                    <small style='color:#d946ef'>Média: {r['media_views']} views/vídeo</small>
+                                    <a href='{r['link']}' target='_blank' class='visit-btn'>Ver Canal ↗</a>
+                                </div>""", unsafe_allow_html=True)
+                                with st.expander("Ver Virais"):
+                                    vs = buscar_top_videos(r['id'], k)
+                                    if vs:
+                                        p = "Roteiros baseados nestes:\n"
+                                        for v in vs:
+                                            st.markdown(f"**{v['titulo']}**<br><small>{v['data']}</small><hr>", unsafe_allow_html=True)
+                                            p+=f"- {v['titulo']}\n"
+                                        st.code(p, language='text')
+                    st.divider()
+                    st.markdown("### 📊 Ranking de Novas Promessas (Max 100 vídeos)")
+                    st.dataframe(
+                        df[['nome','total_videos','inscritos','media_views','viral_score','link']], 
+                        column_config={
+                            "link": st.column_config.LinkColumn("Link", display_text="Ver ↗"),
+                            "viral_score": st.column_config.ProgressColumn("Potencial Viral", min_value=0, max_value=5, format="%.2f")
+                        }, 
+                        use_container_width=True
+                    )
+
+    # MODO 2: RADAR GLOBAL
+    elif modo == "🌍 Radar Global (Dark)":
+        st.markdown("<p style='text-align:center;'>Espione os nichos mais lucrativos do mundo <b>AGORA</b> (Últimos 30 dias).</p>", unsafe_allow_html=True)
+        paises = { "🇺🇸 Estados Unidos": "US", "🇧🇷 Brasil": "BR", "🇲🇽 México": "MX", "🇬🇧 Reino Unido": "GB", "🇩🇪 Alemanha": "DE", "🇪🇸 Espanha": "ES", "🇫🇷 França": "FR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN" }
+        filtros_dict = get_nichos_dark()
+        c1, c2, c3 = st.columns([1, 1, 1])
+        pais = c1.selectbox("1. País:", list(paises.keys()))
+        categoria_nome = c2.selectbox("2. Nicho:", list(filtros_dict.keys()))
+        c3.write(""); c3.write("")
+        key_r = api_key_env if api_key_env else st.text_input("API Keys", type="password")
+        
+        if c3.button("📡 Escanear Nicho & Canais", type="primary"):
+            query = filtros_dict[categoria_nome]
+            with st.spinner(f"Hydra Varrendo YouTube {paises[pais]}..."):
+                res, erro = buscar_radar_dark(paises[pais], query, key_r)
+                top_canais = buscar_top_canais_nicho(paises[pais], query, key_r)
+                
+                if res:
+                    videos = res["videos"]
+                    st.divider()
+                    st.subheader(f"📹 Top Vídeos Recentes")
+                    c_v1, c_v2 = st.columns(2)
+                    for i, v in enumerate(videos):
+                        with (c_v1 if i%2==0 else c_v2):
+                             st.markdown(f"<div class='video-card'><img src='{v['thumb']}' style='width:120px;height:90px;object-fit:cover;border-radius:10px;'><div><h5 style='margin:0;font-size:14px;color:#3d3563;'>{v['titulo'][:60]}...</h5><p style='font-size:11px;margin:5px 0;color:#6b6399;'>📺 {v['canal']}</p><p style='font-size:12px;font-weight:bold;color:#d946ef;'>👁️ {v['views']:,} views</p><a href='{v['link']}' target='_blank' style='font-size:11px;color:#8b5cf6;font-weight:700;'>Assistir ↗</a></div></div>", unsafe_allow_html=True)
+                    
+                    st.divider()
+                    st.markdown(f"<h3 style='color:#3d3563'>🏆 Top Canais 'Hidden Gems' (Max 50 Vídeos)</h3>", unsafe_allow_html=True)
+                    if top_canais:
+                        df_canais = pd.DataFrame(top_canais)
+                        st.dataframe(df_canais, column_config={"Link": st.column_config.LinkColumn("Link", display_text="Acessar ↗"), "Viral Score": st.column_config.ProgressColumn("Crescimento", min_value=0, max_value=5)}, use_container_width=True, hide_index=True)
+                    else: st.warning("Nenhum canal com menos de 50 vídeos encontrado no topo deste nicho/país.")
+                elif erro: st.error(erro)
+
+if st.session_state['logado']: app_principal()
+else: tela_login()

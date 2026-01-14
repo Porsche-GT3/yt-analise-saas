@@ -37,7 +37,7 @@ st.markdown("""
 # --- DICIONÁRIO MESTRE ---
 def get_nichos_dark():
     return {
-        🚀 GERAL (Top Trends)"": None,"
+        "🚀 GERAL (Top Trends)": None,
         "🦖 Pré-História & Megafauna": "prehistoric animals|dinosaurs documentary|megafauna|ice age beasts|animais pré-históricos|monstros marinhos|bizarre animals|criaturas abissais|titanoboa|saber tooth tiger|animais extintos|paleontologia|jurassic world real|vida antes dos humanos",
         "🦑 Monstros Marinhos & Abissais": "deep sea creatures|mariana trench mystery|monsters of the deep|animais do fundo do mar|lula colossal|megalodon sightings|bloop sound|thalassophobia|ocean mysteries|biologia marinha bizarra|deepest part of ocean|animais abissais|sea monsters|estranhas criaturas",
         "🧬 Biologia & Evolução Bizarra": "evolutionary biology|weirdest animals|animais mais estranhos|human evolution documentary|microscopic world|vida microscopica|tardigrade|cell biology|dna secrets|parasitas bizarros|animal mutations|nature is metal|evolution mistakes|biologia explicada",

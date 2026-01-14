@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v4.2", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v4.3", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -96,7 +96,7 @@ def request_hydra(url, params, keys_list):
             continue
     return None, "💀 Todas as chaves falharam (Cota Total Excedida)."
 
-# --- FUNÇÃO DE BUSCA VIRAIS ---
+# --- FUNÇÃO DE BUSCA VIRAIS (CORRIGIDA) ---
 def buscar_radar_dark(pais_code, query_especifica, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return None, "Chave necessária"
@@ -104,11 +104,13 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
     
-    params = {"part": "snippet,statistics", "regionCode": pais_code, "maxResults": 50}
+    # CORREÇÃO CRÍTICA: REMOVIDO 'statistics' DA BUSCA INICIAL
+    params = {"part": "snippet", "regionCode": pais_code, "maxResults": 50}
     
     if query_especifica is None:
         url = "https://www.googleapis.com/youtube/v3/videos"
         params["chart"] = "mostPopular"
+        params["part"] = "snippet,statistics" # Aqui pode ter stats pois é endpoint de vídeo
     else:
         url = "https://www.googleapis.com/youtube/v3/search"
         params["q"] = query_especifica
@@ -122,9 +124,11 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     
     dados_items = dados["items"]
     
+    # SE FOR BUSCA, PRECISAMOS BUSCAR OS DETALHES DEPOIS
     if query_especifica is not None:
         ids_list = [i["id"]["videoId"] for i in dados_items if isinstance(i["id"], dict) and "videoId" in i["id"]]
         if ids_list:
+            # SEGUNDA CHAMADA HYDRA PARA PEGAR STATS
             stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/videos", {"part":"statistics,snippet", "id": ",".join(ids_list)}, keys)
             if stats_dados: dados_items = stats_dados.get("items", [])
     
@@ -163,7 +167,6 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
     next_page_token = None
     
     for _ in range(2): 
-        # BUSCA DE CANAIS (Ordenado por Relevância)
         url = "https://www.googleapis.com/youtube/v3/search"
         params = { "part": "snippet", "q": q, "type": "channel", "regionCode": pais_code, "maxResults": 50 }
         if next_page_token: params["pageToken"] = next_page_token
@@ -174,7 +177,6 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
         ids = [i["id"]["channelId"] for i in data["items"] if "channelId" in i["id"]]
         if not ids: break
         
-        # DETALHES (DATA DE CRIAÇÃO)
         stats_data, s_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(ids)}, keys)
         if s_erro or not stats_data: break
         
@@ -187,7 +189,6 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
                 views = int(stats.get("viewCount", 0))
                 videos = int(stats.get("videoCount", 0))
                 
-                # --- CÁLCULO DE IDADE DO CANAL ---
                 pub_str = snippet.get("publishedAt", "")
                 if pub_str:
                     criacao_dt = datetime.datetime.strptime(pub_str, "%Y-%m-%dT%H:%M:%SZ")
@@ -195,18 +196,13 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
                 else:
                     dias_vida = 9999
                 
-                # --- FILTRO HARDCORE: 1 MÊS (30 DIAS) ---
-                # Aceita até 90 dias (3 meses) para não zerar a lista, mas destaca os < 30.
+                # FILTRO HARDCORE: Até 90 dias
                 if dias_vida <= 90 and subs > 100:
-                    
                     media_views = views / videos if videos > 0 else 0
                     viral_score = media_views / subs if subs > 0 else 0
                     
-                    # DEFINE O TIPO DE JOIA
-                    if dias_vida <= 30:
-                        tag = f"💎 BABY GEM ({dias_vida} dias)"
-                    else:
-                        tag = f"🚀 RISING ({dias_vida} dias)"
+                    if dias_vida <= 30: tag = f"💎 BABY GEM ({dias_vida} dias)"
+                    else: tag = f"🚀 RISING ({dias_vida} dias)"
 
                     canais_encontrados.append({
                         "Canal": snippet.get("title", ""),
@@ -222,12 +218,7 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
         next_page_token = data.get("nextPageToken")
         if not next_page_token: break
     
-    # ORDENA POR RECENTICIDADE (MAIS NOVOS PRIMEIRO)
-    # canais_encontrados.sort(key=lambda x: x["Viral Score"], reverse=True) # Opção 1: Por Viralidade
-    
-    # Opção 2: Prioriza os BABY GEMS (<30 dias) no topo
     canais_encontrados.sort(key=lambda x: (0 if "BABY" in x["Status"] else 1, -x["Viral Score"]))
-    
     return canais_encontrados
 
 # --- MODO 1: BUSCA POR NICHO (MANTIDO) ---
@@ -261,7 +252,6 @@ def buscar_dados_youtube(nicho, keys_str):
             stats = i.get("statistics", {})
             snippet = i.get("snippet", {})
             
-            # CALCULO DE DATA NA BUSCA DIRETA
             pub_str = snippet.get("publishedAt", "")
             if pub_str:
                 dt = datetime.datetime.strptime(pub_str, "%Y-%m-%dT%H:%M:%SZ")
@@ -271,8 +261,6 @@ def buscar_dados_youtube(nicho, keys_str):
             sub = int(stats.get("subscriberCount",0))
             vid = int(stats.get("videoCount",0))
             
-            # Só mostra se for relativamente novo (< 1 ano) para não poluir
-            # Mas marca como GOLD se for < 30 dias
             gold = True if days <= 30 else False
             tag_gem = f"💎 {days}d" if days <= 30 else f"{days}d"
             
@@ -287,7 +275,6 @@ def buscar_dados_youtube(nicho, keys_str):
             })
         except: continue
     
-    # Ordena: Primeiro os GOLD (<30d), depois os mais novos
     res.sort(key=lambda x: (not x['e_ouro'], int(str(x['idade_dias']).replace('💎 ','').replace('d',''))))
     return res, None
 
@@ -296,7 +283,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.2</h2><p>Baby Gems Edition (< 30 Dias)</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.3</h2><p>Bugfix Edition</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -312,9 +299,8 @@ def app_principal():
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.2</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.3</h1>", unsafe_allow_html=True)
 
-    # MODO 1: BUSCA POR NICHO
     if modo == "🔍 Busca por Nicho (Growth)":
         st.markdown("<p style='text-align:center;'>Encontre <b>Baby Gems</b> (Canais criados há menos de 30 dias).</p>", unsafe_allow_html=True)
         with st.form("f1"):
@@ -323,7 +309,6 @@ def app_principal():
             n = c1.text_input("Nicho", placeholder="Ex: Yoga...")
             c2.write(""); c2.write("")
             b = c2.form_submit_button("🔍 Buscar Gems")
-        
         if b and n:
             with st.spinner("Minerando canais recém-nascidos..."):
                 d, e = buscar_dados_youtube(n, k)
@@ -336,33 +321,19 @@ def app_principal():
                         cols = st.columns(3)
                         for i, r in ouro.reset_index().iterrows():
                             with cols[i%3]:
-                                st.markdown(f"""
-                                <div class='gold-card'>
-                                    <span class='gold-badge'>💎 {r['idade_dias']}</span>
-                                    <h4>{r['nome']}</h4>
-                                    <p>📹 {r['total_videos']} vídeos | 👥 {r['inscritos']}</p>
-                                    <a href='{r['link']}' target='_blank' class='visit-btn'>Ver Canal ↗</a>
-                                </div>""", unsafe_allow_html=True)
+                                st.markdown(f"<div class='gold-card'><span class='gold-badge'>💎 {r['idade_dias']}</span><h4>{r['nome']}</h4><p>📹 {r['total_videos']} vídeos | 👥 {r['inscritos']}</p><a href='{r['link']}' target='_blank' class='visit-btn'>Ver Canal ↗</a></div>", unsafe_allow_html=True)
                                 with st.expander("Ver Virais"):
                                     vs = buscar_top_videos(r['id'], k)
                                     if vs:
-                                        p = "Ideias de Vídeo:\n"
+                                        p = "Roteiros:\n"
                                         for v in vs:
                                             st.markdown(f"**{v['titulo']}**<br><small>{v['data']}</small><hr>", unsafe_allow_html=True)
                                             p+=f"- {v['titulo']}\n"
                                         st.code(p, language='text')
                     st.divider()
                     st.markdown("### 📊 Ranking de Novos Canais")
-                    st.dataframe(
-                        df[['nome','idade_dias','inscritos','total_videos','link']], 
-                        column_config={
-                            "link": st.column_config.LinkColumn("Link", display_text="Ver ↗"),
-                            "idade_dias": "Idade (Dias)"
-                        }, 
-                        use_container_width=True
-                    )
+                    st.dataframe(df[['nome','idade_dias','inscritos','total_videos','link']], column_config={"link": st.column_config.LinkColumn("Link", display_text="Ver ↗"), "idade_dias": "Idade (Dias)"}, use_container_width=True)
 
-    # MODO 2: RADAR GLOBAL
     elif modo == "🌍 Radar Global (Dark)":
         st.markdown("<p style='text-align:center;'>Espione os nichos mais lucrativos do mundo <b>AGORA</b> (Últimos 30 dias).</p>", unsafe_allow_html=True)
         paises = { "🇺🇸 Estados Unidos": "US", "🇧🇷 Brasil": "BR", "🇲🇽 México": "MX", "🇬🇧 Reino Unido": "GB", "🇩🇪 Alemanha": "DE", "🇪🇸 Espanha": "ES", "🇫🇷 França": "FR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN" }
@@ -387,7 +358,6 @@ def app_principal():
                     for i, v in enumerate(videos):
                         with (c_v1 if i%2==0 else c_v2):
                              st.markdown(f"<div class='video-card'><img src='{v['thumb']}' style='width:120px;height:90px;object-fit:cover;border-radius:10px;'><div><h5 style='margin:0;font-size:14px;color:#3d3563;'>{v['titulo'][:60]}...</h5><p style='font-size:11px;margin:5px 0;color:#6b6399;'>📺 {v['canal']}</p><p style='font-size:12px;font-weight:bold;color:#d946ef;'>👁️ {v['views']:,} views</p><a href='{v['link']}' target='_blank' style='font-size:11px;color:#8b5cf6;font-weight:700;'>Assistir ↗</a></div></div>", unsafe_allow_html=True)
-                    
                     st.divider()
                     st.markdown(f"<h3 style='color:#3d3563'>🏆 Top Canais 'Baby Gems' (Criação Recente)</h3>", unsafe_allow_html=True)
                     if top_canais:

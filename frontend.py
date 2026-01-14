@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v2.1", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v4.1", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -76,35 +76,39 @@ def get_nichos_dark():
         "🔨 Satisfatório & Restauração": "oddly satisfying video|restoration rusty|carpet cleaning|pressure washing|videos satisfatorios|asmr cleaning|restauracao de relogios|knife restoration|shredding machine|hydraulic press|satisfying slime|kinetic sand|soap cutting|limpeza pesada|art restoration"
     }
 
-# --- FUNÇÃO DE SEGURANÇA PARA EXTRAIR DADOS ---
-def safe_extract_stats(item):
-    """Extrai estatísticas com segurança, retornando 0 se falhar."""
-    try:
-        # Se o item é um resultado de busca, ele não tem 'statistics' diretamente
-        # Se for um item de 'videos.list', ele tem.
-        stats = item.get("statistics", {})
-        return int(stats.get("viewCount", 0))
-    except:
-        return 0
+# --- PROTOCOLO HYDRA ---
+def get_api_keys_list(input_keys):
+    if not input_keys: return []
+    return [k.strip() for k in input_keys.split(',') if k.strip()]
 
-# --- FUNÇÕES DE BUSCA ---
-def buscar_radar_dark(pais_code, query_especifica, api_key):
-    if not api_key: return None, "API Key necessária"
+def request_hydra(url, params, keys_list):
+    for i, key in enumerate(keys_list):
+        params['key'] = key
+        try:
+            resp = requests.get(url, params=params)
+            if resp.status_code == 200:
+                return resp.json(), None
+            if resp.status_code in [403, 429]:
+                print(f"Chave {i+1} esgotada. Trocando...")
+                continue
+            return None, f"Erro API (Chave {i+1}): {resp.text}"
+        except Exception as e:
+            continue
+    return None, "💀 Todas as chaves falharam (Cota Total Excedida)."
+
+# --- FUNÇÃO DE BUSCA VIRAIS ---
+def buscar_radar_dark(pais_code, query_especifica, keys_str):
+    keys = get_api_keys_list(keys_str)
+    if not keys: return None, "Chave necessária"
     
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
     
-    params = {
-        "part": "snippet",
-        "regionCode": pais_code,
-        "maxResults": 50,
-        "key": api_key
-    }
+    params = {"part": "snippet,statistics", "regionCode": pais_code, "maxResults": 50}
     
     if query_especifica is None:
         url = "https://www.googleapis.com/youtube/v3/videos"
         params["chart"] = "mostPopular"
-        params["part"] += ",statistics" # Para mostPopular já vem com stats
     else:
         url = "https://www.googleapis.com/youtube/v3/search"
         params["q"] = query_especifica
@@ -112,152 +116,173 @@ def buscar_radar_dark(pais_code, query_especifica, api_key):
         params["order"] = "viewCount"
         params["publishedAfter"] = published_after
 
-    try:
-        resp = requests.get(url, params=params)
-        dados = resp.json()
-        
-        if "error" in dados:
-            return [], f"Erro API: {dados['error']['message']}"
-        if "items" not in dados:
-            return [], "Nenhum dado encontrado."
-        
-        dados_items = dados["items"]
-        
-        # SE FOR BUSCA (Search), PRECISAMOS BUSCAR OS DETALHES PARA TER 'STATISTICS'
-        if query_especifica is not None:
-            ids_list = []
-            for i in dados_items:
-                if isinstance(i["id"], dict) and "videoId" in i["id"]:
-                    ids_list.append(i["id"]["videoId"])
-                elif isinstance(i["id"], str):
-                    ids_list.append(i["id"])
+    dados, erro = request_hydra(url, params, keys)
+    if erro: return [], erro
+    if "items" not in dados: return [], "Nenhum dado."
+    
+    dados_items = dados["items"]
+    
+    if query_especifica is not None:
+        ids_list = [i["id"]["videoId"] for i in dados_items if isinstance(i["id"], dict) and "videoId" in i["id"]]
+        if ids_list:
+            stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/videos", {"part":"statistics,snippet", "id": ",".join(ids_list)}, keys)
+            if stats_dados: dados_items = stats_dados.get("items", [])
+    
+    todos_tags = []
+    videos_analisados = []
+    
+    for item in dados_items:
+        try:
+            stats = item.get("statistics", {})
+            snippet = item.get("snippet", {})
+            tags = snippet.get("tags", [])
+            if tags: todos_tags.extend([t.lower() for t in tags])
             
-            if ids_list:
-                ids_str = ",".join(ids_list)
-                # Chama videos.list para pegar as views reais
-                stats_resp = requests.get("https://www.googleapis.com/youtube/v3/videos", params={"part":"statistics,snippet", "id": ids_str, "key": api_key})
-                stats_json = stats_resp.json()
-                if "items" in stats_json:
-                    dados_items = stats_json["items"]
-        
-        todos_tags = []
-        videos_analisados = []
-        
-        for item in dados_items:
-            try:
-                snippet = item.get("snippet", {})
-                tags = snippet.get("tags", [])
-                if tags: todos_tags.extend([t.lower() for t in tags])
-                
-                # USA A FUNÇÃO DE SEGURANÇA AQUI
-                view_count = safe_extract_stats(item)
-                
-                # Tratamento de ID seguro
-                vid_id = item.get("id")
-                if isinstance(vid_id, dict): vid_id = vid_id.get("videoId", "")
-                
-                videos_analisados.append({ 
-                    "titulo": snippet.get("title", "Sem Título"), 
-                    "canal": snippet.get("channelTitle", "Desconhecido"), 
-                    "views": view_count, 
-                    "thumb": snippet.get("thumbnails", {}).get("high", {}).get("url", ""), 
-                    "link": f"https://www.youtube.com/watch?v={vid_id}" 
-                })
-            except: continue
+            vid_id = item.get("id")
+            if isinstance(vid_id, dict): vid_id = vid_id.get("videoId", "")
             
-        videos_analisados.sort(key=lambda x: x['views'], reverse=True)
-        return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
+            videos_analisados.append({ 
+                "titulo": snippet.get("title", ""), 
+                "canal": snippet.get("channelTitle", ""), 
+                "views": int(stats.get("viewCount", 0)), 
+                "thumb": snippet.get("thumbnails", {}).get("high", {}).get("url", ""), 
+                "link": f"https://www.youtube.com/watch?v={vid_id}" 
+            })
+        except: continue
         
-    except Exception as e: return None, f"Erro interno: {str(e)}"
+    videos_analisados.sort(key=lambda x: x['views'], reverse=True)
+    return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
 
-def buscar_top_canais_nicho(pais_code, query_especifica, api_key):
-    if not api_key: return []
+# --- TOP CANAIS (FILTRO DE JOIAS: <= 40 VÍDEOS) ---
+def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
+    keys = get_api_keys_list(keys_str)
+    if not keys: return []
+    
     q = query_especifica if query_especifica else ""
     canais_encontrados = []
     next_page_token = None
     
     for _ in range(2): 
+        # BUSCA DE CANAIS
         url = "https://www.googleapis.com/youtube/v3/search"
-        params = { "part": "snippet", "q": q, "type": "channel", "regionCode": pais_code, "maxResults": 50, "key": api_key }
+        params = { "part": "snippet", "q": q, "type": "channel", "regionCode": pais_code, "maxResults": 50 }
         if next_page_token: params["pageToken"] = next_page_token
         
-        try:
-            r = requests.get(url, params=params)
-            data = r.json()
-            if "items" not in data: break
-            
-            ids = [i["id"]["channelId"] for i in data["items"] if "channelId" in i["id"]]
-            if not ids: break
-            
-            url_stats = "https://www.googleapis.com/youtube/v3/channels"
-            r_stats = requests.get(url_stats, params={"part": "statistics,snippet", "id": ",".join(ids), "key": api_key})
-            stats_data = r_stats.json().get("items", [])
-            
-            for c in stats_data:
-                try:
-                    stats = c.get("statistics", {})
-                    snippet = c.get("snippet", {})
-                    subs = int(stats.get("subscriberCount", 0))
-                    views = int(stats.get("viewCount", 0))
-                    video_count = int(stats.get("videoCount", 0))
+        data, erro = request_hydra(url, params, keys)
+        if erro or not data or "items" not in data: break
+        
+        ids = [i["id"]["channelId"] for i in data["items"] if "channelId" in i["id"]]
+        if not ids: break
+        
+        # DETALHES DOS CANAIS
+        stats_data, s_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(ids)}, keys)
+        if s_erro or not stats_data: break
+        
+        for c in stats_data.get("items", []):
+            try:
+                stats = c.get("statistics", {})
+                snippet = c.get("snippet", {})
+                
+                subs = int(stats.get("subscriberCount", 0))
+                views = int(stats.get("viewCount", 0))
+                videos = int(stats.get("videoCount", 0)) # Contagem de vídeos
+                
+                # --- FILTRO SNIPER (JOIAS) ---
+                # Apenas canais com entre 5 e 40 vídeos
+                if 5 <= videos <= 40:
                     
-                    if subs > 1000:
-                        canais_encontrados.append({
-                            "Canal": snippet.get("title", "Sem Nome"),
-                            "Inscritos": subs,
-                            "Total Views": views,
-                            "Vídeos": video_count,
-                            "Criação": snippet.get("publishedAt", "")[:10],
-                            "Link": f"https://www.youtube.com/channel/{c['id']}"
-                        })
-                except: continue
-            
-            next_page_token = data.get("nextPageToken")
-            if not next_page_token: break
-        except: break
+                    # Cálculo de Viralização (Growth)
+                    media_views = views / videos if videos > 0 else 0
+                    viral_score = media_views / subs if subs > 0 else 0
+                    
+                    canais_encontrados.append({
+                        "Canal": snippet.get("title", ""),
+                        "Inscritos": subs,
+                        "Vídeos": videos,
+                        "Média Views/Vídeo": int(media_views),
+                        "Viral Score": round(viral_score, 2),
+                        "Link": f"https://www.youtube.com/channel/{c['id']}"
+                    })
+            except: continue
+        
+        next_page_token = data.get("nextPageToken")
+        if not next_page_token: break
     
-    canais_encontrados.sort(key=lambda x: x["Total Views"], reverse=True)
+    # ORDENA POR POTENCIAL DE VIRALIZAÇÃO
+    canais_encontrados.sort(key=lambda x: x["Viral Score"], reverse=True)
     return canais_encontrados
 
-def buscar_top_videos(channel_id, api_key):
+# --- MODO 1: BUSCA POR NICHO (MANTIDO E MELHORADO) ---
+def buscar_top_videos(channel_id, keys_str):
+    keys = get_api_keys_list(keys_str)
+    if not keys: return []
     try:
         data = datetime.datetime.now() - timedelta(days=45)
-        params = { "key": api_key, "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": data.isoformat("T")+"Z", "type": "video", "maxResults": 5 }
-        r = requests.get("https://www.googleapis.com/youtube/v3/search", params=params)
-        items = r.json().get("items", [])
-        return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in items]
+        params = { "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": data.isoformat("T")+"Z", "type": "video", "maxResults": 5 }
+        d, e = request_hydra("https://www.googleapis.com/youtube/v3/search", params, keys)
+        if not d: return []
+        return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in d.get("items", [])]
     except: return []
 
-def buscar_dados_youtube(nicho, api_key):
-    if not api_key: return None, "Chave necessária"
-    try:
-        r = requests.get("https://www.googleapis.com/youtube/v3/search", params={"part":"snippet", "q":nicho, "type":"channel", "key":api_key, "maxResults":20})
-        d = r.json()
-        if "items" not in d: return [], None
-        ids = ",".join([i["id"]["channelId"] for i in d["items"] if "channelId" in i["id"]])
-        s_r = requests.get("https://www.googleapis.com/youtube/v3/channels", params={"part":"statistics", "id":ids, "key":api_key})
-        s_map = {i["id"]: i.get("statistics", {}) for i in s_r.json().get("items", [])}
-        res = []
-        for i in d["items"]:
-            try:
-                cid = i["id"]["channelId"]
-                s = s_map.get(cid, {})
-                v = int(s.get("viewCount",0))
-                sub = int(s.get("subscriberCount",0))
-                vid = int(s.get("videoCount",0))
-                media = v/vid if vid > 0 else 0
-                gold = True if (0 < vid <= 60 and sub >= 1000 and media > 2000) else False
-                res.append({"nome":i["snippet"]["title"], "inscritos":sub, "total_videos":vid, "media_views":media, "e_ouro":gold, "link":f"https://www.youtube.com/channel/{cid}", "id":cid})
-            except: continue
-        return res, None
-    except Exception as e: return None, str(e)
+def buscar_dados_youtube(nicho, keys_str):
+    keys = get_api_keys_list(keys_str)
+    if not keys: return None, "Chave necessária"
+    
+    d, erro = request_hydra("https://www.googleapis.com/youtube/v3/search", {"part":"snippet", "q":nicho, "type":"channel", "maxResults":50}, keys)
+    if erro or not d: return [], None
+    
+    ids = [i["id"]["channelId"] for i in d.get("items", []) if "channelId" in i["id"]]
+    if not ids: return [], None
+    
+    s_r, erro_s = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part":"statistics", "id": ",".join(ids)}, keys)
+    if not s_r: return [], None
+    
+    s_map = {i["id"]: i.get("statistics", {}) for i in s_r.get("items", [])}
+    res = []
+    
+    for i in d["items"]:
+        try:
+            cid = i["id"]["channelId"]
+            s = s_map.get(cid, {})
+            v = int(s.get("viewCount",0))
+            sub = int(s.get("subscriberCount",0))
+            vid = int(s.get("videoCount",0)) # Contagem de vídeos
+            
+            media = v/vid if vid > 0 else 0
+            
+            # FILTRO SNIPER AQUI TAMBÉM (Modo Busca Direta)
+            # Aceitamos canais um pouco maiores aqui (até 60) para dar mais opções, 
+            # mas focamos nos < 40 para ser GOLD.
+            if vid > 0: score = media / sub if sub > 0 else 0
+            else: score = 0
+            
+            # GOLD = Poucos vídeos (<=40) + Crescimento Alto
+            gold = True if (score > 0.5 and vid <= 40) else False
+            
+            # Só adiciona se tiver menos de 100 vídeos (filtro amplo)
+            # Mas o destaque GOLD vai para os < 40
+            if vid <= 100:
+                res.append({
+                    "nome": i["snippet"]["title"], 
+                    "inscritos": sub, 
+                    "total_videos": vid, 
+                    "media_views": int(media),
+                    "viral_score": round(score, 2),
+                    "e_ouro": gold, 
+                    "link": f"https://www.youtube.com/channel/{cid}", 
+                    "id": cid
+                })
+        except: continue
+        
+    res.sort(key=lambda x: x['viral_score'], reverse=True)
+    return res, None
 
 # --- LOGIN ---
 if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v2.1</h2><p>Login Admin</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.1</h2><p>Gems Edition (Max 40 Vídeos)</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -269,117 +294,93 @@ def app_principal():
     api_key_env = os.getenv("YOUTUBE_API_KEY")
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        modo = st.radio("Navegação:", ["🔍 Busca por Nicho", "🌍 Radar Global (Dark)"])
+        modo = st.radio("Navegação:", ["🔍 Busca por Nicho (Growth)", "🌍 Radar Global (Dark)"])
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v2.1</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.1</h1>", unsafe_allow_html=True)
 
-    # MODO 1: BUSCA
-    if modo == "🔍 Busca por Nicho":
-        st.markdown("<p style='text-align:center;'>Encontre canais específicos.</p>", unsafe_allow_html=True)
+    # MODO 1: BUSCA POR NICHO (GROWTH)
+    if modo == "🔍 Busca por Nicho (Growth)":
+        st.markdown("<p style='text-align:center;'>Encontre <b>Joias Raras</b> (Canais com menos de 40 vídeos explodindo).</p>", unsafe_allow_html=True)
         with st.form("f1"):
             c1,c2=st.columns([3,1])
-            k = api_key_env if api_key_env else c1.text_input("API Key", type="password")
+            k = api_key_env if api_key_env else c1.text_input("API Keys (Hydra)", type="password")
             n = c1.text_input("Nicho", placeholder="Ex: Yoga...")
             c2.write(""); c2.write("")
-            b = c2.form_submit_button("🔍 Buscar")
+            b = c2.form_submit_button("🔍 Buscar Gems")
+        
         if b and n:
-            with st.spinner("Minerando..."):
+            with st.spinner("Minerando canais recentes..."):
                 d, e = buscar_dados_youtube(n, k)
                 if d:
                     df = pd.DataFrame(d)
                     ouro = df[df['e_ouro']==True]
                     st.divider()
                     if not ouro.empty:
-                        st.success(f"Encontramos {len(ouro)} Canais Gold!")
+                        st.success(f"Encontramos {len(ouro)} Canais GOLD (Menos de 40 vídeos + Viral)!")
                         cols = st.columns(3)
                         for i, r in ouro.reset_index().iterrows():
                             with cols[i%3]:
                                 st.markdown(f"""
                                 <div class='gold-card'>
-                                    <span class='gold-badge'>GOLD</span>
+                                    <span class='gold-badge'>💎 GEM {r['viral_score']}</span>
                                     <h4>{r['nome']}</h4>
-                                    <p>📹 {r['total_videos']} | 👥 {r['inscritos']}</p>
+                                    <p>📹 {r['total_videos']} vídeos | 👥 {r['inscritos']}</p>
+                                    <small style='color:#d946ef'>Média: {r['media_views']} views/vídeo</small>
                                     <a href='{r['link']}' target='_blank' class='visit-btn'>Ver Canal ↗</a>
                                 </div>""", unsafe_allow_html=True)
                                 with st.expander("Ver Virais"):
                                     vs = buscar_top_videos(r['id'], k)
                                     if vs:
-                                        p = "Crie titulos baseados nestes:\n"
+                                        p = "Roteiros baseados nestes:\n"
                                         for v in vs:
                                             st.markdown(f"**{v['titulo']}**<br><small>{v['data']}</small><hr>", unsafe_allow_html=True)
                                             p+=f"- {v['titulo']}\n"
                                         st.code(p, language='text')
                     st.divider()
-                    st.dataframe(df[['nome','inscritos','total_videos','media_views','link']], column_config={"link": st.column_config.LinkColumn("Link", display_text="Ver ↗")}, use_container_width=True)
+                    st.markdown("### 📊 Ranking de Novas Promessas (Max 100 vídeos)")
+                    st.dataframe(
+                        df[['nome','total_videos','inscritos','media_views','viral_score','link']], 
+                        column_config={
+                            "link": st.column_config.LinkColumn("Link", display_text="Ver ↗"),
+                            "viral_score": st.column_config.ProgressColumn("Potencial Viral", min_value=0, max_value=5, format="%.2f")
+                        }, 
+                        use_container_width=True
+                    )
 
-    # MODO 2: RADAR
+    # MODO 2: RADAR GLOBAL
     elif modo == "🌍 Radar Global (Dark)":
         st.markdown("<p style='text-align:center;'>Espione os nichos mais lucrativos do mundo <b>AGORA</b> (Últimos 30 dias).</p>", unsafe_allow_html=True)
-        paises = {
-            "🇺🇸 Estados Unidos": "US", "🇬🇧 Reino Unido": "GB", "🇨🇦 Canadá": "CA", "🇦🇺 Austrália": "AU",
-            "🇸🇪 Suécia": "SE", "🇳🇴 Noruega": "NO", "🇩🇰 Dinamarca": "DK", "🇫🇮 Finlândia": "FI", "🇮🇸 Islândia": "IS",
-            "🇲🇽 México": "MX", "🇩🇪 Alemanha": "DE", "🇫🇷 França": "FR", "🇪🇸 Espanha": "ES",
-            "🇧🇷 Brasil": "BR", "🇵🇹 Portugal": "PT", "🇯🇵 Japão": "JP", "🇰🇷 Coreia do Sul": "KR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN"
-        }
+        paises = { "🇺🇸 Estados Unidos": "US", "🇧🇷 Brasil": "BR", "🇲🇽 México": "MX", "🇬🇧 Reino Unido": "GB", "🇩🇪 Alemanha": "DE", "🇪🇸 Espanha": "ES", "🇫🇷 França": "FR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN" }
         filtros_dict = get_nichos_dark()
-        
         c1, c2, c3 = st.columns([1, 1, 1])
-        pais = c1.selectbox("1. Escolha o País:", list(paises.keys()))
-        categoria_nome = c2.selectbox("2. Escolha o Nicho Dark:", list(filtros_dict.keys()))
+        pais = c1.selectbox("1. País:", list(paises.keys()))
+        categoria_nome = c2.selectbox("2. Nicho:", list(filtros_dict.keys()))
         c3.write(""); c3.write("")
-        key_r = api_key_env if api_key_env else st.text_input("API Key", type="password")
+        key_r = api_key_env if api_key_env else st.text_input("API Keys", type="password")
         
         if c3.button("📡 Escanear Nicho & Canais", type="primary"):
             query = filtros_dict[categoria_nome]
-            with st.spinner(f"Varrendo YouTube {paises[pais]} atrás de '{categoria_nome}'..."):
+            with st.spinner(f"Hydra Varrendo YouTube {paises[pais]}..."):
                 res, erro = buscar_radar_dark(paises[pais], query, key_r)
                 top_canais = buscar_top_canais_nicho(paises[pais], query, key_r)
-
+                
                 if res:
                     videos = res["videos"]
-                    tags = res["top_assuntos"]
                     st.divider()
-                    st.subheader(f"🔥 Tags em Alta: {categoria_nome}")
-                    html_tags = "".join([f"<span class='trend-tag'>#{t[0].upper()} ({t[1]})</span>" for t in tags if len(t[0])>3])
-                    st.markdown(f"<div style='background:white; padding:20px; border-radius:15px; border:1px solid #c4b5fd;'>{html_tags}</div>", unsafe_allow_html=True)
-                    
-                    st.divider()
-                    st.subheader(f"📹 Top 50 Vídeos Recentes (Viralizou Agora)")
+                    st.subheader(f"📹 Top Vídeos Recentes")
                     c_v1, c_v2 = st.columns(2)
                     for i, v in enumerate(videos):
                         with (c_v1 if i%2==0 else c_v2):
-                             st.markdown(f"""
-                                <div class="video-card">
-                                    <img src="{v['thumb']}" style="width:120px; height:90px; object-fit:cover; border-radius:10px;">
-                                    <div>
-                                        <h5 style="margin:0; font-size:14px; color:#3d3563;">{v['titulo'][:60]}...</h5>
-                                        <p style="font-size:11px; margin:5px 0; color:#6b6399;">📺 {v['canal']}</p>
-                                        <p style="font-size:12px; font-weight:bold; color:#d946ef;">👁️ {v['views']:,} views</p>
-                                        <a href="{v['link']}" target="_blank" style="font-size:11px; color:#8b5cf6; font-weight:700;">Assistir ↗</a>
-                                    </div>
-                                </div>""", unsafe_allow_html=True)
+                             st.markdown(f"<div class='video-card'><img src='{v['thumb']}' style='width:120px;height:90px;object-fit:cover;border-radius:10px;'><div><h5 style='margin:0;font-size:14px;color:#3d3563;'>{v['titulo'][:60]}...</h5><p style='font-size:11px;margin:5px 0;color:#6b6399;'>📺 {v['canal']}</p><p style='font-size:12px;font-weight:bold;color:#d946ef;'>👁️ {v['views']:,} views</p><a href='{v['link']}' target='_blank' style='font-size:11px;color:#8b5cf6;font-weight:700;'>Assistir ↗</a></div></div>", unsafe_allow_html=True)
                     
                     st.divider()
-                    st.markdown(f"<h3 style='color:#3d3563'>🏆 Top 100 Canais - Hall da Fama ({categoria_nome})</h3>", unsafe_allow_html=True)
-                    st.caption("Canais monetizados (>1k subs) ordenados por autoridade (Total Views). Clique em 'Criação' para ver os mais novos.")
-                    
+                    st.markdown(f"<h3 style='color:#3d3563'>🏆 Top Canais 'Hidden Gems' (Max 40 Vídeos)</h3>", unsafe_allow_html=True)
                     if top_canais:
                         df_canais = pd.DataFrame(top_canais)
-                        st.dataframe(
-                            df_canais,
-                            column_config={
-                                "Link": st.column_config.LinkColumn("Link", display_text="Acessar ↗"),
-                                "Total Views": st.column_config.NumberColumn("Total Views", format="%d"),
-                                "Inscritos": st.column_config.NumberColumn("Inscritos", format="%d")
-                            },
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                    else:
-                        st.warning("Não encontramos canais grandes específicos deste nicho neste país (ou a API limitou a busca).")
-
+                        st.dataframe(df_canais, column_config={"Link": st.column_config.LinkColumn("Link", display_text="Acessar ↗"), "Viral Score": st.column_config.ProgressColumn("Crescimento", min_value=0, max_value=5)}, use_container_width=True, hide_index=True)
+                    else: st.warning("Nenhum canal com menos de 40 vídeos encontrado no topo deste nicho/país.")
                 elif erro: st.error(erro)
 
 if st.session_state['logado']: app_principal()

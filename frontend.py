@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v4.8", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v4.1", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -20,9 +20,9 @@ st.markdown("""
     header[data-testid="stHeader"] { background: transparent; }
     h1, h2, h3 { font-family: 'Inter', sans-serif; color: #3d3563 !important; font-weight: 700; }
     p, label, span, div, caption { color: #544a85 !important; }
-    .gold-card { background: rgba(255, 255, 255, 0.90); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: all 0.4s ease; }
+    .gold-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: all 0.4s ease; }
     .gold-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(139, 92, 246, 0.25); border-color: #8b5cf6; }
-    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: 800; position: absolute; top: -12px; right: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px; }
     .stTextInput input, .stSelectbox div[data-baseweb="select"] { background-color: rgba(255, 255, 255, 0.9) !important; border: 2px solid #ddd6fe !important; color: #3d3563 !important; border-radius: 18px !important; }
     div[data-testid="stFormSubmitButton"] button, div[data-testid="stButton"] button { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); color: #ffffff !important; font-weight: 700 !important; border: none; padding: 14px 28px; border-radius: 50px; width: 100%; box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4); transition: all 0.3s ease; }
     div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stButton"] button:hover { transform: scale(1.05); background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%); }
@@ -37,7 +37,7 @@ st.markdown("""
 # --- DICIONÁRIO MESTRE ---
 def get_nichos_dark():
     return {
-        "🚀 GERAL (Top Trends)": None,
+        🚀 GERAL (Top Trends)"": None,"
         "🦖 Pré-História & Megafauna": "prehistoric animals|dinosaurs documentary|megafauna|ice age beasts|animais pré-históricos|monstros marinhos|bizarre animals|criaturas abissais|titanoboa|saber tooth tiger|animais extintos|paleontologia|jurassic world real|vida antes dos humanos",
         "🦑 Monstros Marinhos & Abissais": "deep sea creatures|mariana trench mystery|monsters of the deep|animais do fundo do mar|lula colossal|megalodon sightings|bloop sound|thalassophobia|ocean mysteries|biologia marinha bizarra|deepest part of ocean|animais abissais|sea monsters|estranhas criaturas",
         "🧬 Biologia & Evolução Bizarra": "evolutionary biology|weirdest animals|animais mais estranhos|human evolution documentary|microscopic world|vida microscopica|tardigrade|cell biology|dna secrets|parasitas bizarros|animal mutations|nature is metal|evolution mistakes|biologia explicada",
@@ -104,12 +104,11 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
     
-    params = {"part": "snippet", "regionCode": pais_code, "maxResults": 50}
+    params = {"part": "snippet,statistics", "regionCode": pais_code, "maxResults": 50}
     
     if query_especifica is None:
         url = "https://www.googleapis.com/youtube/v3/videos"
         params["chart"] = "mostPopular"
-        params["part"] = "snippet,statistics"
     else:
         url = "https://www.googleapis.com/youtube/v3/search"
         params["q"] = query_especifica
@@ -154,7 +153,7 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     videos_analisados.sort(key=lambda x: x['views'], reverse=True)
     return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
 
-# --- TOP CANAIS (UNIFICADO: REGRAS ESTRITAS) ---
+# --- TOP CANAIS (FILTRO DE JOIAS: <= 40 VÍDEOS) ---
 def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return []
@@ -164,6 +163,7 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
     next_page_token = None
     
     for _ in range(2): 
+        # BUSCA DE CANAIS
         url = "https://www.googleapis.com/youtube/v3/search"
         params = { "part": "snippet", "q": q, "type": "channel", "regionCode": pais_code, "maxResults": 50 }
         if next_page_token: params["pageToken"] = next_page_token
@@ -174,6 +174,7 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
         ids = [i["id"]["channelId"] for i in data["items"] if "channelId" in i["id"]]
         if not ids: break
         
+        # DETALHES DOS CANAIS
         stats_data, s_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(ids)}, keys)
         if s_erro or not stats_data: break
         
@@ -184,56 +185,34 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
                 
                 subs = int(stats.get("subscriberCount", 0))
                 views = int(stats.get("viewCount", 0))
-                videos = int(stats.get("videoCount", 0))
+                videos = int(stats.get("videoCount", 0)) # Contagem de vídeos
                 
-                pub_str = snippet.get("publishedAt", "")
-                if pub_str:
-                    criacao_dt = datetime.datetime.strptime(pub_str, "%Y-%m-%dT%H:%M:%SZ")
-                    dias_vida = (datetime.datetime.now() - criacao_dt).days
-                else: dias_vida = 9999
-                
-                # --- REGRAS DE OURO (GOLDEN RULES) ---
-                # 1. Monetizável: >= 1000 subs
-                # 2. Volume: <= 50 vídeos
-                # 3. Idade: <= 90 dias (3 meses)
-                if subs >= 1000 and videos <= 50 and dias_vida <= 90:
+                # --- FILTRO SNIPER (JOIAS) ---
+                # Apenas canais com entre 5 e 40 vídeos
+                if 5 <= videos <= 40:
                     
+                    # Cálculo de Viralização (Growth)
                     media_views = views / videos if videos > 0 else 0
                     viral_score = media_views / subs if subs > 0 else 0
                     
-                    # --- CLASSIFICAÇÃO VISUAL ---
-                    if dias_vida <= 30: 
-                        badge = f"💎 GEM ({dias_vida}d)"
-                        tier = 1
-                    elif dias_vida <= 60: 
-                        badge = f"🚀 FOGUETE ({dias_vida}d)"
-                        tier = 2
-                    else: 
-                        badge = f"🔥 FOGO ({dias_vida}d)"
-                        tier = 3
-
                     canais_encontrados.append({
                         "Canal": snippet.get("title", ""),
-                        "Status": badge,
                         "Inscritos": subs,
                         "Vídeos": videos,
-                        "Média Views": int(media_views),
+                        "Média Views/Vídeo": int(media_views),
                         "Viral Score": round(viral_score, 2),
-                        "Tier": tier,
                         "Link": f"https://www.youtube.com/channel/{c['id']}"
                     })
-
             except: continue
         
         next_page_token = data.get("nextPageToken")
         if not next_page_token: break
     
-    # ORDENAÇÃO: GEM (1) -> FOGUETE (2) -> FOGO (3)
-    # Desempate pelo Viral Score
-    canais_encontrados.sort(key=lambda x: (x["Tier"], -x["Viral Score"]))
+    # ORDENA POR POTENCIAL DE VIRALIZAÇÃO
+    canais_encontrados.sort(key=lambda x: x["Viral Score"], reverse=True)
     return canais_encontrados
 
-# --- MODO 1: BUSCA POR NICHO (MANTIDO E ADAPTADO) ---
+# --- MODO 1: BUSCA POR NICHO (MANTIDO E MELHORADO) ---
 def buscar_top_videos(channel_id, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return []
@@ -255,49 +234,47 @@ def buscar_dados_youtube(nicho, keys_str):
     ids = [i["id"]["channelId"] for i in d.get("items", []) if "channelId" in i["id"]]
     if not ids: return [], None
     
-    s_r, erro_s = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part":"statistics,snippet", "id": ",".join(ids)}, keys)
+    s_r, erro_s = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part":"statistics", "id": ",".join(ids)}, keys)
     if not s_r: return [], None
     
+    s_map = {i["id"]: i.get("statistics", {}) for i in s_r.get("items", [])}
     res = []
-    for i in s_r.get("items", []):
+    
+    for i in d["items"]:
         try:
-            stats = i.get("statistics", {})
-            snippet = i.get("snippet", {})
+            cid = i["id"]["channelId"]
+            s = s_map.get(cid, {})
+            v = int(s.get("viewCount",0))
+            sub = int(s.get("subscriberCount",0))
+            vid = int(s.get("videoCount",0)) # Contagem de vídeos
             
-            pub_str = snippet.get("publishedAt", "")
-            if pub_str:
-                dt = datetime.datetime.strptime(pub_str, "%Y-%m-%dT%H:%M:%SZ")
-                days = (datetime.datetime.now() - dt).days
-            else: days = 9999
+            media = v/vid if vid > 0 else 0
             
-            sub = int(stats.get("subscriberCount",0))
-            vid = int(stats.get("videoCount",0))
+            # FILTRO SNIPER AQUI TAMBÉM (Modo Busca Direta)
+            # Aceitamos canais um pouco maiores aqui (até 60) para dar mais opções, 
+            # mas focamos nos < 40 para ser GOLD.
+            if vid > 0: score = media / sub if sub > 0 else 0
+            else: score = 0
             
-            # --- APLICA AS REGRAS RÍGIDAS AQUI TAMBÉM ---
-            if sub >= 1000 and vid <= 50 and days <= 90:
-                if days <= 30: 
-                    badge = f"💎 GEM ({days}d)"
-                    tier = 1
-                elif days <= 60: 
-                    badge = f"🚀 FOGUETE ({days}d)"
-                    tier = 2
-                else: 
-                    badge = f"🔥 FOGO ({days}d)"
-                    tier = 3
-                
+            # GOLD = Poucos vídeos (<=40) + Crescimento Alto
+            gold = True if (score > 0.5 and vid <= 40) else False
+            
+            # Só adiciona se tiver menos de 100 vídeos (filtro amplo)
+            # Mas o destaque GOLD vai para os < 40
+            if vid <= 100:
                 res.append({
-                    "nome": snippet.get("title", ""), 
+                    "nome": i["snippet"]["title"], 
                     "inscritos": sub, 
                     "total_videos": vid, 
-                    "badge": badge,
-                    "tier": tier, 
-                    "link": f"https://www.youtube.com/channel/{i['id']}", 
-                    "id": i['id']
+                    "media_views": int(media),
+                    "viral_score": round(score, 2),
+                    "e_ouro": gold, 
+                    "link": f"https://www.youtube.com/channel/{cid}", 
+                    "id": cid
                 })
         except: continue
-    
-    # Ordenação por Tier
-    res.sort(key=lambda x: (x['tier'], int(str(x['badge']).split('(')[-1].replace('d)',''))))
+        
+    res.sort(key=lambda x: x['viral_score'], reverse=True)
     return res, None
 
 # --- LOGIN ---
@@ -305,7 +282,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.8</h2><p>Golden Rules: Max 3 Meses | Max 50 Vídeos</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.1</h2><p>Gems Edition (Max 40 Vídeos)</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -317,15 +294,15 @@ def app_principal():
     api_key_env = os.getenv("YOUTUBE_API_KEY")
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        modo = st.radio("Navegação:", ["🔍 Busca por Nicho (Gems)", "🌍 Radar Global (Dark)"])
+        modo = st.radio("Navegação:", ["🔍 Busca por Nicho (Growth)", "🌍 Radar Global (Dark)"])
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.8</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.1</h1>", unsafe_allow_html=True)
 
-    # MODO 1: BUSCA POR NICHO (GEMS)
-    if modo == "🔍 Busca por Nicho (Gems)":
-        st.markdown("<p style='text-align:center;'>Encontre <b>Gems</b> (Regra: < 90 dias, > 1k subs, < 50 vídeos).</p>", unsafe_allow_html=True)
+    # MODO 1: BUSCA POR NICHO (GROWTH)
+    if modo == "🔍 Busca por Nicho (Growth)":
+        st.markdown("<p style='text-align:center;'>Encontre <b>Joias Raras</b> (Canais com menos de 40 vídeos explodindo).</p>", unsafe_allow_html=True)
         with st.form("f1"):
             c1,c2=st.columns([3,1])
             k = api_key_env if api_key_env else c1.text_input("API Keys (Hydra)", type="password")
@@ -334,43 +311,48 @@ def app_principal():
             b = c2.form_submit_button("🔍 Buscar Gems")
         
         if b and n:
-            with st.spinner("Filtrando diamantes..."):
+            with st.spinner("Minerando canais recentes..."):
                 d, e = buscar_dados_youtube(n, k)
                 if d:
                     df = pd.DataFrame(d)
-                    top_gems = df.head(3)
-                    
+                    ouro = df[df['e_ouro']==True]
                     st.divider()
-                    if not top_gems.empty:
-                        st.success(f"Encontramos {len(df)} canais qualificados!")
+                    if not ouro.empty:
+                        st.success(f"Encontramos {len(ouro)} Canais GOLD (Menos de 40 vídeos + Viral)!")
                         cols = st.columns(3)
-                        for i, r in top_gems.reset_index().iterrows():
+                        for i, r in ouro.reset_index().iterrows():
                             with cols[i%3]:
                                 st.markdown(f"""
                                 <div class='gold-card'>
-                                    <span class='gold-badge'>{r['badge']}</span>
+                                    <span class='gold-badge'>💎 GEM {r['viral_score']}</span>
                                     <h4>{r['nome']}</h4>
-                                    <p>📹 {r['total_videos']} | 👥 {r['inscritos']}</p>
+                                    <p>📹 {r['total_videos']} vídeos | 👥 {r['inscritos']}</p>
+                                    <small style='color:#d946ef'>Média: {r['media_views']} views/vídeo</small>
                                     <a href='{r['link']}' target='_blank' class='visit-btn'>Ver Canal ↗</a>
                                 </div>""", unsafe_allow_html=True)
                                 with st.expander("Ver Virais"):
                                     vs = buscar_top_videos(r['id'], k)
                                     if vs:
-                                        p = "Roteiros:\n"
+                                        p = "Roteiros baseados nestes:\n"
                                         for v in vs:
                                             st.markdown(f"**{v['titulo']}**<br><small>{v['data']}</small><hr>", unsafe_allow_html=True)
                                             p+=f"- {v['titulo']}\n"
                                         st.code(p, language='text')
-                        st.divider()
-                        st.markdown("### 📊 Lista Completa (Ordenada por Tier)")
-                        st.dataframe(df[['nome','badge','inscritos','total_videos','link']], column_config={"link": st.column_config.LinkColumn("Link", display_text="Ver ↗"), "badge": "Status"}, use_container_width=True)
-                    else:
-                        st.warning("Nenhum canal atendeu a TODAS as regras (Monetizado + <90 dias + <50 vídeos). Tente outro nicho!")
+                    st.divider()
+                    st.markdown("### 📊 Ranking de Novas Promessas (Max 100 vídeos)")
+                    st.dataframe(
+                        df[['nome','total_videos','inscritos','media_views','viral_score','link']], 
+                        column_config={
+                            "link": st.column_config.LinkColumn("Link", display_text="Ver ↗"),
+                            "viral_score": st.column_config.ProgressColumn("Potencial Viral", min_value=0, max_value=5, format="%.2f")
+                        }, 
+                        use_container_width=True
+                    )
 
     # MODO 2: RADAR GLOBAL
     elif modo == "🌍 Radar Global (Dark)":
         st.markdown("<p style='text-align:center;'>Espione os nichos mais lucrativos do mundo <b>AGORA</b> (Últimos 30 dias).</p>", unsafe_allow_html=True)
-        paises = { "🇺🇸 Estados Unidos": "US", "🇬🇧 Reino Unido": "GB", "🇨🇦 Canadá": "CA", "🇦🇺 Austrália": "AU", "🇧🇷 Brasil": "BR", "🇲🇽 México": "MX", "🇩🇪 Alemanha": "DE", "🇪🇸 Espanha": "ES", "🇫🇷 França": "FR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN" }
+        paises = { "🇺🇸 Estados Unidos": "US", "🇧🇷 Brasil": "BR", "🇲🇽 México": "MX", "🇬🇧 Reino Unido": "GB", "🇩🇪 Alemanha": "DE", "🇪🇸 Espanha": "ES", "🇫🇷 França": "FR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN" }
         filtros_dict = get_nichos_dark()
         c1, c2, c3 = st.columns([1, 1, 1])
         pais = c1.selectbox("1. País:", list(paises.keys()))
@@ -392,12 +374,13 @@ def app_principal():
                     for i, v in enumerate(videos):
                         with (c_v1 if i%2==0 else c_v2):
                              st.markdown(f"<div class='video-card'><img src='{v['thumb']}' style='width:120px;height:90px;object-fit:cover;border-radius:10px;'><div><h5 style='margin:0;font-size:14px;color:#3d3563;'>{v['titulo'][:60]}...</h5><p style='font-size:11px;margin:5px 0;color:#6b6399;'>📺 {v['canal']}</p><p style='font-size:12px;font-weight:bold;color:#d946ef;'>👁️ {v['views']:,} views</p><a href='{v['link']}' target='_blank' style='font-size:11px;color:#8b5cf6;font-weight:700;'>Assistir ↗</a></div></div>", unsafe_allow_html=True)
+                    
                     st.divider()
-                    st.markdown(f"<h3 style='color:#3d3563'>🏆 Top Canais 'Golden Rules' (Gems, Foguete, Fogo)</h3>", unsafe_allow_html=True)
+                    st.markdown(f"<h3 style='color:#3d3563'>🏆 Top Canais 'Hidden Gems' (Max 40 Vídeos)</h3>", unsafe_allow_html=True)
                     if top_canais:
                         df_canais = pd.DataFrame(top_canais)
-                        st.dataframe(df_canais, column_config={"Link": st.column_config.LinkColumn("Link", display_text="Acessar ↗"), "Status": "Status"}, use_container_width=True, hide_index=True)
-                    else: st.warning("Nenhum canal encontrado com as regras: < 3 meses, > 1k subs, < 50 vídeos.")
+                        st.dataframe(df_canais, column_config={"Link": st.column_config.LinkColumn("Link", display_text="Acessar ↗"), "Viral Score": st.column_config.ProgressColumn("Crescimento", min_value=0, max_value=5)}, use_container_width=True, hide_index=True)
+                    else: st.warning("Nenhum canal com menos de 40 vídeos encontrado no topo deste nicho/país.")
                 elif erro: st.error(erro)
 
 if st.session_state['logado']: app_principal()

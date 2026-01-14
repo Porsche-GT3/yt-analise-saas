@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v4.6", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v4.7", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -20,13 +20,20 @@ st.markdown("""
     header[data-testid="stHeader"] { background: transparent; }
     h1, h2, h3 { font-family: 'Inter', sans-serif; color: #3d3563 !important; font-weight: 700; }
     p, label, span, div, caption { color: #544a85 !important; }
+    
+    /* CARDS */
     .gold-card { background: rgba(255, 255, 255, 0.90); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: all 0.4s ease; }
     .gold-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(139, 92, 246, 0.25); border-color: #8b5cf6; }
-    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px; }
+    
+    /* BADGES */
+    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: 800; position: absolute; top: -12px; right: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    
+    /* INPUTS & BUTTONS */
     .stTextInput input, .stSelectbox div[data-baseweb="select"] { background-color: rgba(255, 255, 255, 0.9) !important; border: 2px solid #ddd6fe !important; color: #3d3563 !important; border-radius: 18px !important; }
     div[data-testid="stFormSubmitButton"] button, div[data-testid="stButton"] button { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); color: #ffffff !important; font-weight: 700 !important; border: none; padding: 14px 28px; border-radius: 50px; width: 100%; box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4); transition: all 0.3s ease; }
     div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stButton"] button:hover { transform: scale(1.05); background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%); }
-    .trend-tag { display: inline-block; background: #eaddff; color: #3d3563; padding: 5px 12px; border-radius: 15px; margin: 3px; font-size: 12px; font-weight: 600; }
+    
+    /* VIDEO & LINKS */
     .video-card { background:rgba(255,255,255,0.6); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid #eaddff; display:flex; gap:10px; transition: all 0.3s ease; }
     .video-card:hover { background: white; transform: scale(1.02); border-color: #d946ef; }
     .visit-btn { display: block; width: 100%; text-align: center; padding: 12px; background: white; border: 2px solid #ddd6fe; color: #6b6399; border-radius: 15px; text-decoration: none; font-weight: 700; margin-top: 10px; transition:0.3s; }
@@ -154,7 +161,7 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     videos_analisados.sort(key=lambda x: x['views'], reverse=True)
     return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
 
-# --- TOP CANAIS (DUPLA LÓGICA) ---
+# --- TOP CANAIS (DUPLA LÓGICA - RADAR GLOBAL vs BUSCA) ---
 def buscar_top_canais_nicho(pais_code, query_especifica, keys_str, filtro_modo="gem"):
     keys = get_api_keys_list(keys_str)
     if not keys: return []
@@ -195,8 +202,8 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str, filtro_modo="
                 media_views = views / videos if videos > 0 else 0
                 viral_score = media_views / subs if subs > 0 else 0
 
+                # LÓGICA RADAR: < 90 dias e < 50 vídeos
                 if filtro_modo == "radar":
-                    # Radar Global: < 90 dias e < 50 vídeos
                     if dias_vida <= 90 and videos <= 50 and subs > 500:
                         tag = f"📈 ASCENSÃO ({dias_vida}d)"
                         canais_encontrados.append({
@@ -217,7 +224,7 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str, filtro_modo="
     canais_encontrados.sort(key=lambda x: x["Viral Score"], reverse=True)
     return canais_encontrados
 
-# --- MODO 1: BUSCA POR NICHO (SMART GEMS - NUNCA FALHA) ---
+# --- MODO 1: BUSCA POR NICHO (GEM RESTAURADA) ---
 def buscar_top_videos(channel_id, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return []
@@ -257,33 +264,35 @@ def buscar_dados_youtube(nicho, keys_str):
             sub = int(stats.get("subscriberCount",0))
             vid = int(stats.get("videoCount",0))
             
-            # --- LÓGICA DE TIERS (SMART GEMS) ---
+            # --- LÓGICA DE TIERS (GEM VISUAL RESTAURADA) ---
+            # Prioridade 1: Baby Gems (< 45 dias) -> Mostra "💎 GEM"
+            # Prioridade 2: Rising (< 180 dias) -> Mostra "🚀 RISING"
+            # Prioridade 3: Antigos -> Mostra "🔥 ESTABELECIDO" (Sem dias para não ficar feio)
+            
             if days <= 45: 
-                badge = f"💎 DIAMANTE ({days}d)"
-                tier = 1 # Prioridade máxima
+                badge = f"💎 GEM ({days}d)"
+                tier = 1 # Topo
             elif days <= 180:
-                badge = f"🥇 OURO ({days}d)"
+                badge = f"🚀 RISING ({days}d)"
                 tier = 2
-            elif days <= 365:
-                badge = f"🥈 PRATA ({days}d)"
-                tier = 3
             else:
-                badge = f"{days} dias"
-                tier = 4
+                badge = f"🔥 ESTABELECIDO"
+                tier = 3 # Fundo
             
             res.append({
                 "nome": snippet.get("title", ""), 
                 "inscritos": sub, 
                 "total_videos": vid, 
                 "badge": badge,
-                "tier": tier, # Usado para ordenação
+                "tier": tier, 
                 "link": f"https://www.youtube.com/channel/{i['id']}", 
                 "id": i['id']
             })
         except: continue
     
-    # ORDENAÇÃO: TIER (1º Diamante, 2º Ouro...) -> DEPOIS PELA IDADE (Mais novo vence)
-    res.sort(key=lambda x: (x['tier'], int(str(x['badge']).split('(')[-1].replace('d)','').replace(' dias','')) if '(' in str(x['badge']) else 9999))
+    # Ordena: Tier 1 (Gem) -> Tier 2 (Rising) -> Tier 3
+    # Dentro do mesmo Tier, o mais novo ganha
+    res.sort(key=lambda x: (x['tier'], int(str(x['badge']).split('(')[-1].replace('d)','')) if '(' in str(x['badge']) else 9999))
     
     return res, None
 
@@ -292,7 +301,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.6</h2><p>Smart Gems Edition</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.7</h2><p>Gem Visual Restore</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -308,7 +317,7 @@ def app_principal():
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.6</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.7</h1>", unsafe_allow_html=True)
 
     # MODO 1: BUSCA POR NICHO (SMART GEMS)
     if modo == "🔍 Busca por Nicho (Gems)":
@@ -326,7 +335,7 @@ def app_principal():
                 if d:
                     df = pd.DataFrame(d)
                     
-                    # PEGA OS TOP 3 (SEMPRE VAI TER, POIS ORDENAMOS POR TIER)
+                    # PEGA OS TOP 3 (SEMPRE VAI TER)
                     top_gems = df.head(3)
                     
                     st.divider()

@@ -362,4 +362,46 @@ def app_principal():
                                         p = "Roteiros:\n"
                                         for v in vs:
                                             st.markdown(f"**{v['titulo']}**<br><small>{v['data']}</small><hr>", unsafe_allow_html=True)
-                                            p+=
+                                            p+=f"- {v['titulo']}\n"
+                                        st.code(p, language='text')
+                    st.divider()
+                    st.markdown("### 📊 Ranking de Novos Canais")
+                    st.dataframe(df[['nome','idade_dias','inscritos','total_videos','link']], column_config={"link": st.column_config.LinkColumn("Link", display_text="Ver ↗"), "idade_dias": "Idade (Dias)"}, use_container_width=True)
+
+    # MODO 2: RADAR GLOBAL (RISING - 3 MESES / MAX 50 VIDEOS)
+    elif modo == "🌍 Radar Global (Dark)":
+        st.markdown("<p style='text-align:center;'>Espione os nichos mais lucrativos do mundo <b>AGORA</b> (Últimos 30 dias).</p>", unsafe_allow_html=True)
+        paises = { "🇺🇸 Estados Unidos": "US", "🇧🇷 Brasil": "BR", "🇲🇽 México": "MX", "🇬🇧 Reino Unido": "GB", "🇩🇪 Alemanha": "DE", "🇪🇸 Espanha": "ES", "🇫🇷 França": "FR", "🇷🇺 Rússia": "RU", "🇮🇳 Índia": "IN" }
+        filtros_dict = get_nichos_dark()
+        c1, c2, c3 = st.columns([1, 1, 1])
+        pais = c1.selectbox("1. País:", list(paises.keys()))
+        categoria_nome = c2.selectbox("2. Nicho:", list(filtros_dict.keys()))
+        c3.write(""); c3.write("")
+        key_r = api_key_env if api_key_env else st.text_input("API Keys", type="password")
+        
+        if c3.button("📡 Escanear Nicho & Canais", type="primary"):
+            query = filtros_dict[categoria_nome]
+            with st.spinner(f"Hydra Varrendo YouTube {paises[pais]}..."):
+                res, erro = buscar_radar_dark(paises[pais], query, key_r)
+                
+                # AQUI CHAMA COM O FILTRO NOVO "radar"
+                top_canais = buscar_top_canais_nicho(paises[pais], query, key_r, filtro_modo="radar")
+                
+                if res:
+                    videos = res["videos"]
+                    st.divider()
+                    st.subheader(f"📹 Top Vídeos Recentes")
+                    c_v1, c_v2 = st.columns(2)
+                    for i, v in enumerate(videos):
+                        with (c_v1 if i%2==0 else c_v2):
+                             st.markdown(f"<div class='video-card'><img src='{v['thumb']}' style='width:120px;height:90px;object-fit:cover;border-radius:10px;'><div><h5 style='margin:0;font-size:14px;color:#3d3563;'>{v['titulo'][:60]}...</h5><p style='font-size:11px;margin:5px 0;color:#6b6399;'>📺 {v['canal']}</p><p style='font-size:12px;font-weight:bold;color:#d946ef;'>👁️ {v['views']:,} views</p><a href='{v['link']}' target='_blank' style='font-size:11px;color:#8b5cf6;font-weight:700;'>Assistir ↗</a></div></div>", unsafe_allow_html=True)
+                    st.divider()
+                    st.markdown(f"<h3 style='color:#3d3563'>🏆 Top Canais em Ascensão (< 3 Meses & < 50 Vídeos)</h3>", unsafe_allow_html=True)
+                    if top_canais:
+                        df_canais = pd.DataFrame(top_canais)
+                        st.dataframe(df_canais, column_config={"Link": st.column_config.LinkColumn("Link", display_text="Acessar ↗"), "Viral Score": st.column_config.ProgressColumn("Crescimento", min_value=0, max_value=5)}, use_container_width=True, hide_index=True)
+                    else: st.warning("Nenhum canal encontrado com estas regras estritas (<3 meses, <50 vídeos).")
+                elif erro: st.error(erro)
+
+if st.session_state['logado']: app_principal()
+else: tela_login()

@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v4.9", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v5.1", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -20,9 +20,9 @@ st.markdown("""
     header[data-testid="stHeader"] { background: transparent; }
     h1, h2, h3 { font-family: 'Inter', sans-serif; color: #3d3563 !important; font-weight: 700; }
     p, label, span, div, caption { color: #544a85 !important; }
-    .gold-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: all 0.4s ease; }
+    .gold-card { background: rgba(255, 255, 255, 0.90); backdrop-filter: blur(15px); border: 2px solid #c4b5fd; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15); margin-bottom: 25px; transition: all 0.4s ease; }
     .gold-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(139, 92, 246, 0.25); border-color: #8b5cf6; }
-    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; position: absolute; top: -12px; right: 20px; }
+    .gold-badge { background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%); color: white !important; padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: 800; position: absolute; top: -12px; right: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     .stTextInput input, .stSelectbox div[data-baseweb="select"] { background-color: rgba(255, 255, 255, 0.9) !important; border: 2px solid #ddd6fe !important; color: #3d3563 !important; border-radius: 18px !important; }
     div[data-testid="stFormSubmitButton"] button, div[data-testid="stButton"] button { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); color: #ffffff !important; font-weight: 700 !important; border: none; padding: 14px 28px; border-radius: 50px; width: 100%; box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4); transition: all 0.3s ease; }
     div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stButton"] button:hover { transform: scale(1.05); background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%); }
@@ -96,7 +96,8 @@ def request_hydra(url, params, keys_list):
             continue
     return None, "💀 Todas as chaves falharam (Cota Total Excedida)."
 
-# --- FUNÇÃO DE BUSCA VIRAIS ---
+# --- FUNÇÕES DE BUSCA (CACHE OTIMIZADO) ---
+@st.cache_data(ttl=21600, show_spinner=False)
 def buscar_radar_dark(pais_code, query_especifica, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return None, "Chave necessária"
@@ -104,25 +105,31 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
     
-    params = {"part": "snippet,statistics", "regionCode": pais_code, "maxResults": 50}
+    # 1. PARÂMETROS BÁSICOS (SEM 'statistics' POR ENQUANTO)
+    params = {"regionCode": pais_code, "maxResults": 50}
     
     if query_especifica is None:
+        # Se for Tendências (Videos), PODE pedir statistics direto
         url = "https://www.googleapis.com/youtube/v3/videos"
         params["chart"] = "mostPopular"
-        params["part"] = "snippet,statistics"
+        params["part"] = "snippet,statistics" 
     else:
+        # Se for Busca (Search), NÃO PODE pedir statistics (Isso corrigiu o erro 400)
         url = "https://www.googleapis.com/youtube/v3/search"
         params["q"] = query_especifica
         params["type"] = "video"
         params["order"] = "viewCount"
         params["publishedAfter"] = published_after
+        params["part"] = "snippet"
 
+    # CHAMADA 1: LISTAR VÍDEOS
     dados, erro = request_hydra(url, params, keys)
     if erro: return [], erro
     if "items" not in dados: return [], "Nenhum dado."
     
     dados_items = dados["items"]
     
+    # CHAMADA 2: SE FOI BUSCA, PEGAR ESTATÍSTICAS DOS VÍDEOS ENCONTRADOS
     if query_especifica is not None:
         ids_list = [i["id"]["videoId"] for i in dados_items if isinstance(i["id"], dict) and "videoId" in i["id"]]
         if ids_list:
@@ -154,7 +161,7 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     videos_analisados.sort(key=lambda x: x['views'], reverse=True)
     return {"videos": videos_analisados, "top_assuntos": Counter(todos_tags).most_common(15)}, None
 
-# --- TOP CANAIS (FILTRO DE JOIAS: <= 50 VÍDEOS & < 120 DIAS) ---
+@st.cache_data(ttl=21600, show_spinner=False)
 def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return []
@@ -192,34 +199,27 @@ def buscar_top_canais_nicho(pais_code, query_especifica, keys_str):
                     dias_vida = (datetime.datetime.now() - criacao_dt).days
                 else: dias_vida = 9999
                 
-                # --- FILTRO 1: VOLUME (Ajustado para 50) ---
-                if 5 <= videos <= 50:
+                # REGRAS DE OURO: 5 a 50 vídeos + < 4 meses
+                if 5 <= videos <= 50 and dias_vida <= 120:
+                    media_views = views / videos if videos > 0 else 0
+                    viral_score = media_views / subs if subs > 0 else 0
                     
-                    # --- FILTRO 2: IDADE (Ajustado para < 120 dias) ---
-                    # Garante que é "Rising/Gem" e não canal velho abandonado
-                    if dias_vida <= 120:
-                        
-                        media_views = views / videos if videos > 0 else 0
-                        viral_score = media_views / subs if subs > 0 else 0
-                        
-                        canais_encontrados.append({
-                            "Canal": snippet.get("title", ""),
-                            "Inscritos": subs,
-                            "Vídeos": videos,
-                            "Média Views/Vídeo": int(media_views),
-                            "Viral Score": round(viral_score, 2),
-                            "Link": f"https://www.youtube.com/channel/{c['id']}"
-                        })
+                    canais_encontrados.append({
+                        "Canal": snippet.get("title", ""),
+                        "Inscritos": subs,
+                        "Vídeos": videos,
+                        "Média Views/Vídeo": int(media_views),
+                        "Viral Score": round(viral_score, 2),
+                        "Link": f"https://www.youtube.com/channel/{c['id']}"
+                    })
             except: continue
         
         next_page_token = data.get("nextPageToken")
         if not next_page_token: break
     
-    # ORDENA POR POTENCIAL DE VIRALIZAÇÃO
     canais_encontrados.sort(key=lambda x: x["Viral Score"], reverse=True)
     return canais_encontrados
 
-# --- MODO 1: BUSCA POR NICHO ---
 def buscar_top_videos(channel_id, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return []
@@ -231,6 +231,7 @@ def buscar_top_videos(channel_id, keys_str):
         return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10], "thumb": i["snippet"]["thumbnails"]["high"]["url"]} for i in d.get("items", [])]
     except: return []
 
+@st.cache_data(ttl=21600, show_spinner=False)
 def buscar_dados_youtube(nicho, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return None, "Chave necessária"
@@ -244,13 +245,12 @@ def buscar_dados_youtube(nicho, keys_str):
     s_r, erro_s = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part":"statistics,snippet", "id": ",".join(ids)}, keys)
     if not s_r: return [], None
     
-    s_map = {i["id"]: i.get("statistics", {}) for i in s_r.get("items", [])}
     res = []
     
-    for i in d["items"]:
+    for i in s_r.get("items", []):
         try:
             cid = i["id"]["channelId"]
-            s = s_map.get(cid, {})
+            s = i.get("statistics", {})
             v = int(s.get("viewCount",0))
             sub = int(s.get("subscriberCount",0))
             vid = int(s.get("videoCount",0))
@@ -267,8 +267,7 @@ def buscar_dados_youtube(nicho, keys_str):
             if vid > 0: score = media / sub if sub > 0 else 0
             else: score = 0
             
-            # --- GOLDEN RULE APLICADA ---
-            # Menos de 50 vídeos + Crescimento Alto + Menos de 120 dias
+            # GOLD RULE: <= 50 vídeos + Crescimento + < 120 dias
             gold = True if (score > 0.5 and vid <= 50 and days <= 120) else False
             
             if vid <= 100:
@@ -292,7 +291,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v4.9</h2><p>Stable Gems Edition (Max 50 Vídeos)</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v5.1</h2><p>Bugfix Edition (No Error 400)</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -308,7 +307,7 @@ def app_principal():
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v4.9</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v5.1</h1>", unsafe_allow_html=True)
 
     # MODO 1: BUSCA POR NICHO (GROWTH)
     if modo == "🔍 Busca por Nicho (Growth)":
@@ -321,7 +320,7 @@ def app_principal():
             b = c2.form_submit_button("🔍 Buscar Gems")
         
         if b and n:
-            with st.spinner("Minerando canais recentes..."):
+            with st.spinner("Minerando canais recentes (Cache Ativo)..."):
                 d, e = buscar_dados_youtube(n, k)
                 if d:
                     df = pd.DataFrame(d)
@@ -372,7 +371,7 @@ def app_principal():
         
         if c3.button("📡 Escanear Nicho & Canais", type="primary"):
             query = filtros_dict[categoria_nome]
-            with st.spinner(f"Hydra Varrendo YouTube {paises[pais]}..."):
+            with st.spinner(f"Hydra Varrendo YouTube {paises[pais]} (Cache Ativo)..."):
                 res, erro = buscar_radar_dark(paises[pais], query, key_r)
                 top_canais = buscar_top_canais_nicho(paises[pais], query, key_r)
                 

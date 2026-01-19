@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v5.1", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v5.2", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -37,6 +37,7 @@ st.markdown("""
 # --- DICIONÁRIO MESTRE ---
 def get_nichos_dark():
     return {
+        "🐾 Reino Animal & Curiosidades (NOVO)": "animal facts|curiosidades animais|prehistoric animals|animais pré-históricos|wildlife documentary|vida selvagem|animais estranhos|bizarre animals|animais inteligentes|smartest animals|zoologia|zoology|animais extintos|extinct animals|mundo animal|bio curiosities",
         "🚀 GERAL (Top Trends)": None,
         "🦖 Pré-História & Megafauna": "prehistoric animals|dinosaurs documentary|megafauna|ice age beasts|animais pré-históricos|monstros marinhos|bizarre animals|criaturas abissais|titanoboa|saber tooth tiger|animais extintos|paleontologia|jurassic world real|vida antes dos humanos",
         "🦑 Monstros Marinhos & Abissais": "deep sea creatures|mariana trench mystery|monsters of the deep|animais do fundo do mar|lula colossal|megalodon sightings|bloop sound|thalassophobia|ocean mysteries|biologia marinha bizarra|deepest part of ocean|animais abissais|sea monsters|estranhas criaturas",
@@ -105,16 +106,13 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
     data_inicio = datetime.datetime.now() - timedelta(days=30)
     published_after = data_inicio.isoformat("T") + "Z"
     
-    # 1. PARÂMETROS BÁSICOS (SEM 'statistics' POR ENQUANTO)
-    params = {"regionCode": pais_code, "maxResults": 50}
+    params = {"part": "snippet,statistics", "regionCode": pais_code, "maxResults": 50}
     
     if query_especifica is None:
-        # Se for Tendências (Videos), PODE pedir statistics direto
         url = "https://www.googleapis.com/youtube/v3/videos"
         params["chart"] = "mostPopular"
-        params["part"] = "snippet,statistics" 
+        params["part"] = "snippet,statistics"
     else:
-        # Se for Busca (Search), NÃO PODE pedir statistics (Isso corrigiu o erro 400)
         url = "https://www.googleapis.com/youtube/v3/search"
         params["q"] = query_especifica
         params["type"] = "video"
@@ -122,14 +120,12 @@ def buscar_radar_dark(pais_code, query_especifica, keys_str):
         params["publishedAfter"] = published_after
         params["part"] = "snippet"
 
-    # CHAMADA 1: LISTAR VÍDEOS
     dados, erro = request_hydra(url, params, keys)
     if erro: return [], erro
     if "items" not in dados: return [], "Nenhum dado."
     
     dados_items = dados["items"]
     
-    # CHAMADA 2: SE FOI BUSCA, PEGAR ESTATÍSTICAS DOS VÍDEOS ENCONTRADOS
     if query_especifica is not None:
         ids_list = [i["id"]["videoId"] for i in dados_items if isinstance(i["id"], dict) and "videoId" in i["id"]]
         if ids_list:
@@ -245,12 +241,13 @@ def buscar_dados_youtube(nicho, keys_str):
     s_r, erro_s = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part":"statistics,snippet", "id": ",".join(ids)}, keys)
     if not s_r: return [], None
     
+    s_map = {i["id"]: i.get("statistics", {}) for i in s_r.get("items", [])}
     res = []
     
-    for i in s_r.get("items", []):
+    for i in d["items"]:
         try:
             cid = i["id"]["channelId"]
-            s = i.get("statistics", {})
+            s = s_map.get(cid, {})
             v = int(s.get("viewCount",0))
             sub = int(s.get("subscriberCount",0))
             vid = int(s.get("videoCount",0))
@@ -291,7 +288,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v5.1</h2><p>Bugfix Edition (No Error 400)</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v5.2</h2><p>Animal Edition</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -307,7 +304,7 @@ def app_principal():
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v5.1</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Blueberry Finder AI v5.2</h1>", unsafe_allow_html=True)
 
     # MODO 1: BUSCA POR NICHO (GROWTH)
     if modo == "🔍 Busca por Nicho (Growth)":

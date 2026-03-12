@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import os
 import datetime
+from datetime import timedelta
 from collections import Counter
 from dotenv import load_dotenv
 
@@ -10,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v6.3", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v6.4", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -54,14 +55,14 @@ def buscar_top_videos(channel_id, keys_str):
     keys = get_api_keys_list(keys_str)
     if not keys: return []
     try:
-        data = datetime.datetime.now() - datetime.timedelta(days=90)
+        data = datetime.datetime.now() - timedelta(days=90)
         params = { "channelId": channel_id, "part": "snippet", "order": "viewCount", "publishedAfter": data.isoformat("T")+"Z", "type": "video", "maxResults": 3 }
         d, e = request_hydra("https://www.googleapis.com/youtube/v3/search", params, keys)
         if not d: return []
         return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10]} for i in d.get("items", [])]
     except: return []
 
-# --- BUSCA SNIPER UNIVERSAL ---
+# --- BUSCA SNIPER COM ENGENHARIA REVERSA (O SEGREDO) ---
 @st.cache_data(ttl=21600, show_spinner=False)
 def buscar_micro_nicho(palavra_chave, keys_str):
     keys = get_api_keys_list(keys_str)
@@ -69,21 +70,25 @@ def buscar_micro_nicho(palavra_chave, keys_str):
     
     canais_unicornios = []
     canais_secundarios = []
+    
+    # 1. PEGAR A DATA DE 3 MESES ATRÁS (90 dias)
+    data_limite = datetime.datetime.now() - timedelta(days=90)
+    published_after = data_limite.isoformat("T") + "Z"
+    
+    canais_vistos = set()
+    lote_canais = []
     next_page_token = None
-    vistos = set() 
     
-    # Faz uma varredura profunda (8 páginas = 400 canais analisados no backend)
-    max_pages = 8 
-    
-    for page in range(max_pages):
-        # A MÁGICA GLOBAL ACONTECE AQUI: Retiramos o regionCode. 
-        # O YouTube busca globalmente em qualquer idioma com base no 'q' (palavra_chave).
+    # FASE 1: VARREDURA DE VÍDEOS (Engenharia Reversa)
+    # Buscamos até 300 VÍDEOS (não canais) que estejam bombando sobre o tema, postados recentemente.
+    for page in range(6): 
         params_busca = {
             "part": "snippet",
             "q": palavra_chave,
-            "type": "channel",
+            "type": "video",       # PROCURAR VÍDEO (Pega o conteúdo real)
             "maxResults": 50,
-            "order": "relevance"
+            "order": "viewCount",  # Ordenado por Views (Para achar quem está viralizando)
+            "publishedAfter": published_after # Força a achar só vídeos recentes
         }
         if next_page_token:
             params_busca["pageToken"] = next_page_token
@@ -92,15 +97,27 @@ def buscar_micro_nicho(palavra_chave, keys_str):
         if erro or not dados_busca or "items" not in dados_busca: 
             break
             
-        ids_canais = [i["id"]["channelId"] for i in dados_busca.get("items", []) if "channelId" in i["id"] and i["id"]["channelId"] not in vistos]
-        if not ids_canais: 
+        # Extrai os donos dos vídeos (Canais)
+        for item in dados_busca.get("items", []):
+            try:
+                cid = item["snippet"]["channelId"]
+                if cid not in canais_vistos:
+                    canais_vistos.add(cid)
+                    lote_canais.append(cid)
+            except: continue
+            
+        next_page_token = dados_busca.get("nextPageToken")
+        if not next_page_token: 
             break
-            
-        for cid in ids_canais: vistos.add(cid)
-            
-        stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(ids_canais)}, keys)
+
+    # FASE 2: ANÁLISE DOS CANAIS (Raio-X)
+    # A API só permite analisar 50 canais por vez. Quebramos nossa lista em lotes de 50.
+    for i in range(0, len(lote_canais), 50):
+        chunk = lote_canais[i:i+50]
+        
+        stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(chunk)}, keys)
         if stats_erro or not stats_dados: 
-            break
+            continue
             
         for canal in stats_dados.get("items", []):
             try:
@@ -138,21 +155,19 @@ def buscar_micro_nicho(palavra_chave, keys_str):
                     # Unicórnio (>= 1k subs E <= 70 vídeos)
                     if subs >= 1000 and videos <= 70:
                         canal_dict["Status"] = f"🎯 UNICÓRNIO"
-                        canais_unicornios.append(canal_dict)
+                        if canal_dict not in canais_unicornios:
+                            canais_unicornios.append(canal_dict)
                     # Secundário / Radar de Crescimento
                     else:
                         canal_dict["Status"] = f"🌱 EM CRESCIMENTO"
-                        canais_secundarios.append(canal_dict)
+                        if canal_dict not in canais_secundarios:
+                            canais_secundarios.append(canal_dict)
 
             except Exception as e: 
                 continue
         
-        # Meta: Achar o máximo possível, parando se já tivermos uma amostra gigantesca
-        if len(canais_unicornios) >= 10 and len(canais_secundarios) >= 20:
-            break
-            
-        next_page_token = dados_busca.get("nextPageToken")
-        if not next_page_token: 
+        # Otimização: Se já achou muito, pode parar
+        if len(canais_unicornios) >= 15 and len(canais_secundarios) >= 30:
             break
 
     # Ordenações
@@ -166,7 +181,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v6.3</h2><p>Open World Edition (Busca Universal)</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v6.4</h2><p>Reverse Engineering Engine</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -179,29 +194,28 @@ def app_principal():
     
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        st.markdown("📍 **Modo:** Universal (Global)")
+        st.markdown("📍 **Modo:** Engenharia Reversa (Global)")
         st.divider()
         st.info("**🎯 Regras Unicórnio:**\n\n✅ Min 1.000 Inscritos\n✅ Max 70 Vídeos\n✅ Max 3 Meses")
-        st.info("**🌱 Regras Radar (Top 10):**\n\n✅ Max 3 Meses\n✅ Não bateu 1k ou passou de 70 vídeos")
+        st.info("**🌱 Regras Radar (Top 10):**\n\n✅ Max 3 Meses\n✅ Quase lá (Subindo de Inscritos)")
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Busca Sniper Open World</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Digite <b>absolutamente qualquer coisa</b> em <b>qualquer idioma</b>. O algoritmo buscará no mundo todo.</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Motor de Busca Apurado</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Procura <b>vídeos virais</b> primeiro, depois encontra os donos (Canais) e aplica as regras.</p>", unsafe_allow_html=True)
 
     with st.form("f_sniper"):
         
         c1, c2 = st.columns([3, 1])
-        palavra_chave = c1.text_input("Nicho, Sub-nicho ou Micro-nicho:", placeholder="Ex: food, a, comida callejera, minecraft lore, 狗...")
+        palavra_chave = c1.text_input("Nicho, Sub-nicho ou Micro-nicho:", placeholder="Ex: holy bible, food, dark history...")
         k = api_key_env if api_key_env else c2.text_input("API Keys (Hydra)", type="password")
         
         st.write("")
-        b = st.form_submit_button("🌍 Escanear Mundo Inteiro")
+        b = st.form_submit_button("🌍 Iniciar Engenharia Reversa")
         
     if b and palavra_chave:
         
-        with st.spinner(f"Varrendo a base global do YouTube por '{palavra_chave}'..."):
-            # Foi removido o código do país. Agora a busca é 100% livre.
+        with st.spinner(f"Extraindo dados dos vídeos virais sobre '{palavra_chave}' no mundo..."):
             unicornios, secundarios, erro = buscar_micro_nicho(palavra_chave, k)
             
             if erro:
@@ -224,7 +238,6 @@ def app_principal():
 
                 if qtd_uni > 0:
                     cols = st.columns(3)
-                    # Exibe todos os encontrados (limite para layout bonito, ex: top 9)
                     for i, r in enumerate(unicornios[:9]): 
                         with cols[i%3]:
                             st.markdown(f"""
@@ -249,7 +262,7 @@ def app_principal():
                 # ==========================================
                 st.divider()
                 st.markdown(f"<h2 style='color:#6b6399;'>🔭 Radar: Top 10 Canais de Aproximação (Criados há ≤ 3 meses)</h2>", unsafe_allow_html=True)
-                st.markdown("Estes canais são **muito novos**, mas ainda não bateram 1k de inscritos ou passaram de 70 vídeos.")
+                st.markdown("Estes canais postaram vídeos virais recentemente e estão em fase de teste. Fique de olho neles!")
                 
                 if len(secundarios) > 0:
                     df_sec = pd.DataFrame(secundarios)

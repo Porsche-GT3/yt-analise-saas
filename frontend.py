@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v8.1", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v8.2", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -106,8 +106,7 @@ def buscar_gems_universal(palavra_chave, keys_str):
         next_page = d_videos.get("nextPageToken")
         if not next_page: break
 
-    # REDE 3: BUSCA VÍDEOS POR VIRALIZAÇÃO - VIEWCOUNT (O Segredo para achar o "Hidden Faith")
-    # Ignora o tamanho do canal, procura vídeos do tema que explodiram nos últimos 3 meses.
+    # REDE 3: BUSCA VÍDEOS POR VIRALIZAÇÃO - VIEWCOUNT (O Segredo)
     next_page = None
     for _ in range(5): 
         params = {"part": "snippet", "q": palavra_chave, "type": "video", "maxResults": 50, "order": "viewCount", "publishedAfter": pub_after}
@@ -152,10 +151,8 @@ def buscar_gems_universal(palavra_chave, keys_str):
                     "id": canal['id']
                 }
 
-                # --- AS REGRAS MESTRAS CRAVADAS ---
-                
-                # Se o canal tem no MÁXIMO 70 vídeos totais...
-                if videos <= 70:
+                # --- NOVAS REGRAS MESTRAS CRAVADAS: MÁXIMO 100 VÍDEOS ---
+                if videos <= 100:
                     
                     # 💎 GEMS: Bateu ou ultrapassou 1000 subscritores
                     if subs >= 1000:
@@ -179,7 +176,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.1</h2><p>Triple Net GEMS Edition</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.2</h2><p>Limit Extended (100 Vídeos)</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("Utilizador"); p=st.text_input("Palavra-passe", type="password")
             if st.form_submit_button("🚀 Iniciar Sessão"):
@@ -194,13 +191,13 @@ def app_principal():
         st.markdown("### Menu 🫐")
         st.markdown("📍 **Modo:** Arrastão GEMS (Global)")
         st.divider()
-        st.info("**💎 Regra Ouro:**\n\n✅ Mín. 1.000 Subscritores\n✅ Máx. 70 Vídeos Totais")
-        st.info("**🌱 Radar (Aproximação):**\n\n✅ Máx. 70 Vídeos\n✅ Menos de 1k Subs")
+        st.info("**💎 Regra Ouro:**\n\n✅ Mín. 1.000 Subscritores\n✅ Máx. 100 Vídeos Totais")
+        st.info("**🌱 Radar (Aproximação):**\n\n✅ Máx. 100 Vídeos\n✅ Menos de 1k Subs")
         st.divider()
         if st.button("Terminar Sessão"): st.session_state['logado']=False; st.rerun()
 
     st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Motor GEMS Definitivo</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>A Rede Tripla força a API a encontrar canais pequenos que furaram a bolha, ignorando as restrições da idade da conta.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>A Rede Tripla força a API a encontrar canais que furaram a bolha em qualquer lugar do mundo.</p>", unsafe_allow_html=True)
 
     with st.form("f_sniper"):
         c1, c2 = st.columns([3, 1])
@@ -208,7 +205,7 @@ def app_principal():
         k = api_key_env if api_key_env else c2.text_input("Chaves de API (Hydra)", type="password")
         
         st.write("")
-        b = st.form_submit_button("🌍 Buscar GEMS (Rede Tripla)")
+        b = st.form_submit_button("🌍 Buscar GEMS (Até 100 vídeos)")
         
     if b and palavra_chave:
         
@@ -223,7 +220,7 @@ def app_principal():
                 # BLOCO 1: AS GEMS ENCONTRADAS (CRITÉRIO PERFEITO)
                 # ==========================================
                 st.divider()
-                st.markdown(f"<h2 style='color:#8b5cf6;'>💎 Canais GEM (≤ 70 vídeos, ≥ 1.000 Subs)</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='color:#8b5cf6;'>💎 Canais GEM (≤ 100 vídeos, ≥ 1.000 Subs)</h2>", unsafe_allow_html=True)
                 
                 qtd_gems = len(gems)
                 if qtd_gems >= 5:
@@ -231,11 +228,11 @@ def app_principal():
                 elif qtd_gems > 0:
                     st.warning(f"Encontrámos {qtd_gems} canais GEMS. A meta era 5, o que significa que encontrou os pioneiros num nicho ainda com muito espaço!")
                 else:
-                    st.error(f"Nenhum canal com até 70 vídeos e mais de 1k subscritores foi detetado. Verifique o Radar abaixo para ver os que estão a crescer!")
+                    st.error(f"Nenhum canal com até 100 vídeos e mais de 1k subscritores foi detetado. Verifique o Radar abaixo para ver os que estão a crescer!")
 
                 if qtd_gems > 0:
                     cols = st.columns(3)
-                    for i, r in enumerate(gems[:18]): # Aumentado o limite de visualização para 18
+                    for i, r in enumerate(gems[:18]): 
                         with cols[i%3]:
                             st.markdown(f"""
                             <div class='gold-card'>
@@ -257,7 +254,7 @@ def app_principal():
                 # BLOCO 2: RADAR (< 1.000 Subs)
                 # ==========================================
                 st.divider()
-                st.markdown(f"<h2 style='color:#6b6399;'>🔭 Radar de Crescimento (≤ 70 vídeos & < 1.000 Subs)</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='color:#6b6399;'>🔭 Radar de Crescimento (≤ 100 vídeos & < 1.000 Subs)</h2>", unsafe_allow_html=True)
                 
                 if len(radar) > 0:
                     df_rad = pd.DataFrame(radar)

@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import os
 import datetime
+import re
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -10,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v8.5", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v8.7", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -43,7 +44,7 @@ def request_hydra(url, params, keys_list):
             if resp.status_code == 200:
                 return resp.json(), None
             if resp.status_code in [403, 429]:
-                continue # Tenta a próxima chave se cota excedida
+                continue 
             return None, f"Erro API (Código {resp.status_code}): {resp.text}"
         except Exception as e:
             continue
@@ -60,11 +61,28 @@ def buscar_top_videos(channel_id, keys_str):
         return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10]} for i in d.get("items", [])]
     except: return []
 
-# --- FUNÇÃO NOVA: RAIO-X DE PLAYLIST (O Segredo dos 3.5 meses) ---
-def possui_videos_antigos(uploads_id, keys_list, data_limite):
-    """Verifica se o canal tem ALGUM vídeo mais velho que 3.5 meses"""
+# --- UTILITÁRIOS DE DURAÇÃO ---
+def duration_to_seconds(duration_str):
+    """Converte duração ISO 8601 (ex: PT1M30S) em segundos."""
+    match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration_str)
+    if not match: return 0
+    h = int(match.group(1) or 0)
+    m = int(match.group(2) or 0)
+    s = int(match.group(3) or 0)
+    return h * 3600 + m * 60 + s
+
+# --- RAIO-X DE PLAYLIST (Idade + Formato Longo) ---
+def verificar_canal_valido(uploads_id, keys_list, data_limite):
+    """
+    Retorna True APENAS se:
+    1. TODOS os vídeos forem mais recentes que data_limite (3.5 meses)
+    2. Existir PELO MENOS UM vídeo longo (> 65 segundos, excluindo canais só de Shorts)
+    """
     next_page = None
-    for _ in range(3): # Verifica até 150 vídeos (o nosso limite é 100, então sobra)
+    video_ids = []
+    
+    # 1. Coletar IDs de vídeos e verificar se há vídeos velhos
+    for _ in range(2): # Verifica até 100 vídeos
         params = {"part": "snippet", "playlistId": uploads_id, "maxResults": 50}
         if next_page: params["pageToken"] = next_page
         
@@ -74,21 +92,42 @@ def possui_videos_antigos(uploads_id, keys_list, data_limite):
         items = data.get("items", [])
         for item in items:
             pub_str = item.get("snippet", {}).get("publishedAt", "")
+            vid_id = item.get("snippet", {}).get("resourceId", {}).get("videoId")
+            
             if pub_str:
                 try:
                     pub_date = datetime.datetime.strptime(pub_str, "%Y-%m-%dT%H:%M:%SZ")
-                    # Se algum vídeo for mais velho que o limite, descarta o canal!
+                    # REJEIÇÃO 1: Vídeo postado há mais de 3.5 meses
                     if pub_date < data_limite:
-                        return True 
-                except:
-                    pass
+                        return False 
+                except: pass
+                
+            if vid_id: video_ids.append(vid_id)
                     
         next_page = data.get("nextPageToken")
         if not next_page: break
-            
-    return False # Todos os vídeos são recentes!
 
-# --- BUSCA UNIVERSAL (REDE TRIPLA) ---
+    # 2. Verificar se existe Pelo Menos Um vídeo LONGO (> 65s)
+    tem_video_longo = False
+    
+    for i in range(0, len(video_ids), 50):
+        chunk = video_ids[i:i+50]
+        params = {"part": "contentDetails", "id": ",".join(chunk)}
+        data, err = request_hydra("https://www.googleapis.com/youtube/v3/videos", params, keys_list)
+        if err or not data: continue
+        
+        for item in data.get("items", []):
+            dur_str = item.get("contentDetails", {}).get("duration", "")
+            segundos = duration_to_seconds(dur_str)
+            if segundos > 65: # Mais de 65 segundos garante que NÃO é um Short
+                tem_video_longo = True
+                break
+        if tem_video_longo: break
+
+    # REJEIÇÃO 2: Só tem Shorts (tem_video_longo = False)
+    return tem_video_longo
+
+# --- BUSCA UNIVERSAL ---
 def buscar_gems_universal(palavra_chave, keys_str, status_box):
     keys = get_api_keys_list(keys_str)
     if not keys: return None, None, "Chave necessária"
@@ -98,7 +137,7 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
     canais_vistos = set()
     lote_canais = []
     
-    # REDE 1: BUSCA DIRETA
+    # REDE 1
     status_box.write("📡 Rede 1: Pesquisando canais por relevância de nome...")
     next_page = None
     for _ in range(3): 
@@ -115,14 +154,13 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
         next_page = d_canais.get("nextPageToken")
         if not next_page: break
 
-    # REDE 2 E 3: LIMITE DE 3.5 MESES (105 DIAS)
+    # REDES 2 E 3
     dias_limite = 105
     data_limite_3_5_meses = datetime.datetime.now() - timedelta(days=dias_limite)
     pub_after = data_limite_3_5_meses.isoformat("T") + "Z"
     
-    status_box.write("📡 Rede 2 e 3: Rastreado vídeos publicados nos últimos 3.5 meses (independente da idade do canal)...")
+    status_box.write("📡 Rede 2 e 3: Rastreado vídeos publicados nos últimos 3.5 meses...")
     
-    # Por Relevância
     next_page = None
     for _ in range(3): 
         params = {"part": "snippet", "q": palavra_chave, "type": "video", "maxResults": 50, "order": "relevance", "publishedAfter": pub_after}
@@ -138,7 +176,6 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
         next_page = d_videos.get("nextPageToken")
         if not next_page: break
         
-    # Por Viralização
     next_page = None
     for _ in range(4): 
         params = {"part": "snippet", "q": palavra_chave, "type": "video", "maxResults": 50, "order": "viewCount", "publishedAfter": pub_after}
@@ -154,12 +191,11 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
         next_page = d_videos.get("nextPageToken")
         if not next_page: break
 
-    # FASE 4: RAIO-X DOS CANAIS + VERIFICAÇÃO DE PLAYLIST
-    status_box.write(f"⚙️ Analisando dados de {len(lote_canais)} canais únicos...")
+    # FASE 4: O GRANDE FILTRO
+    status_box.write(f"⚙️ Analisando dados, datas e formato longo de {len(lote_canais)} canais únicos...")
     
     for i in range(0, len(lote_canais), 50):
         chunk = lote_canais[i:i+50]
-        # ADICIONADO 'contentDetails' PARA PEGAR A PLAYLIST DE UPLOADS
         stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet,contentDetails", "id": ",".join(chunk)}, keys)
         if stats_erro: return None, None, stats_erro
         if not stats_dados: continue
@@ -175,17 +211,14 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
                 
                 if videos == 0 or videos > 100: continue
                 
-                # --- A MÁGICA ACONTECE AQUI ---
-                # Pega a playlist oculta com todos os vídeos do canal
                 uploads_id = canal.get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads")
-                
-                # Verifica se EXISTE algum vídeo mais velho que 3.5 meses
                 if uploads_id:
-                    tem_video_velho = possui_videos_antigos(uploads_id, keys, data_limite_3_5_meses)
-                    if tem_video_velho:
-                        continue # Pula este canal, pois ele postava antes de 3.5 meses
+                    # Roda o filtro duplo: Idade Max + Vídeos Longos
+                    canal_eh_valido = verificar_canal_valido(uploads_id, keys, data_limite_3_5_meses)
+                    if not canal_eh_valido: continue 
+                else:
+                    continue
                 
-                # Se chegou até aqui, TODOS os vídeos dele foram postados em até 3.5 meses!
                 media_views = views / videos
                 viral_score = media_views / subs if subs > 0 else 0
                 
@@ -199,15 +232,13 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
                     "id": canal['id']
                 }
 
-                if subs >= 1000:
-                    gems_encontradas.append(canal_dict)
-                else:
-                    radar_quase_la.append(canal_dict)
+                if subs >= 1000: gems_encontradas.append(canal_dict)
+                else: radar_quase_la.append(canal_dict)
                     
             except Exception as e: 
                 continue
 
-    status_box.write(f"🎯 Escaneamento temporal finalizado! GEMS: {len(gems_encontradas)} | Radar: {len(radar_quase_la)}")
+    status_box.write(f"🎯 Escaneamento finalizado! GEMS perfeitas encontradas: {len(gems_encontradas)}")
 
     gems_encontradas.sort(key=lambda x: x["Viral Score"], reverse=True)
     radar_quase_la.sort(key=lambda x: x["Inscritos"], reverse=True) 
@@ -219,7 +250,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.5</h2><p>Playlist X-Ray Edition</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.7</h2><p>Niche Validator (Long-Form Edition)</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("Utilizador"); p=st.text_input("Palavra-passe", type="password")
             if st.form_submit_button("🚀 Iniciar Sessão"):
@@ -232,41 +263,48 @@ def app_principal():
     
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        st.markdown("📍 **Modo:** Raio-X de Playlist")
+        st.markdown("📍 **Modo:** Validador Absoluto")
         st.divider()
-        st.info("**💎 Regra Ouro:**\n\n✅ Mín. 1.000 Subs\n✅ Máx. 100 Vídeos\n✅ TODOS vídeos com ≤ 3.5 meses")
+        st.info("**🎯 Regras de Validação:**\n\n✅ Exige 4 a 5 Canais Mínimo\n✅ Mín. 1.000 Subs por Canal\n✅ Máx. 100 Vídeos\n✅ TODOS os vídeos c/ ≤ 3.5 meses\n✅ Contém vídeos Longos (> 1 min)")
         st.divider()
         if st.button("Terminar Sessão"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Motor GEMS Universal</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Validador de Tendências</h1>", unsafe_allow_html=True)
 
     with st.form("f_sniper"):
         c1, c2 = st.columns([3, 1])
-        palavra_chave = c1.text_input("Palavra-chave (Curta ou Longa):", placeholder="Ex: 'bible hidden'...")
-        k = api_key_env if api_key_env else c2.text_input("Chave API (Suporta múltiplas por vírgula)", type="password")
+        palavra_chave = c1.text_input("Palavra-chave (Curta ou Longa):", placeholder="Ex: 'bible hidden', 'reddit stories'...")
+        k = api_key_env if api_key_env else c2.text_input("Chave API (Pode usar múltiplas)", type="password")
         
         st.write("")
-        b = st.form_submit_button("🌍 Buscar GEMS (Até 100 vídeos recentes)")
+        b = st.form_submit_button("🌍 Validar Subnicho (Filtro Anti-Shorts)")
         
     if b and palavra_chave:
         
-        with st.status(f"A investigar canais com projeto recente (≤ 3.5 meses) para '{palavra_chave}'...", expanded=True) as status_box:
+        with st.status(f"A validar a tendência '{palavra_chave}' (Verificando as regras rígidas e excluindo canais apenas de Shorts)...", expanded=True) as status_box:
             gems, radar, erro = buscar_gems_universal(palavra_chave, k, status_box)
             
             if erro:
                 status_box.update(label="Falha na Busca!", state="error", expanded=True)
                 st.error(f"🚨 ERRO CRÍTICO NA API:\n{erro}")
-                st.warning("💡 Dica: Se acabou a cota diária, lembre-se de adicionar uma nova chave Google Cloud separada por vírgula na caixa ao lado.")
             else:
                 status_box.update(label="Busca Concluída com Sucesso!", state="complete", expanded=False)
                 
-                # BLOCO 1: GEMS
+                # --- A LÓGICA DE VALIDAÇÃO ESTA AQUI ---
                 st.divider()
-                st.markdown(f"<h2 style='color:#8b5cf6;'>💎 Canais GEM (≤ 100 vídeos TOTAIS postados em até 3.5 meses, ≥ 1k Subs)</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='color:#8b5cf6;'>💎 Canais GEM Encontrados (Vídeos Longos, ≤ 100 vídeos em 3.5 meses, ≥ 1k Subs)</h2>", unsafe_allow_html=True)
                 
                 qtd_gems = len(gems)
+                
+                # REGRA MESTRE APLICADA NA INTERFACE: Exige de 4 a 5 canais
+                if qtd_gems >= 4:
+                    st.success(f"🔥 NICHO VALIDADO! Atingimos a meta com {qtd_gems} canais GEMS idênticos para '{palavra_chave}'. Todos com vídeos longos, mercado seguro para entrar!")
+                elif qtd_gems > 0:
+                    st.warning(f"⚠️ NICHO INCOMPLETO! Encontrámos apenas {qtd_gems} canal(is) GEM que passam em TODAS as regras (inclusive ter vídeos longos). A sua meta exige 4 a 5 canais concorrentes.")
+                else:
+                    st.error(f"❌ NICHO REJEITADO. Nenhum canal atendeu a todas as regras perfeitas (1k subs, < 100 vídeos, < 3.5 meses E com vídeos longos).")
+
                 if qtd_gems > 0:
-                    st.success(f"Encontrámos {qtd_gems} canais GEMS autênticos!")
                     cols = st.columns(3)
                     for i, r in enumerate(gems[:18]): 
                         with cols[i%3]:
@@ -277,10 +315,8 @@ def app_principal():
                                 <p>📹 <b>{r['Vídeos']} vídeos</b> | 👥 <b>{r['Inscritos']:,}</b></p>
                                 <a href='{r['Link']}' target='_blank' class='visit-btn'>Aceder ao Canal ↗</a>
                             </div>""", unsafe_allow_html=True)
-                else:
-                    st.error(f"Nenhum canal puro (onde TODOS os vídeos tem menos de 3.5 meses, até 100 vídeos e > 1k subs) encontrado para '{palavra_chave}'.")
 
-                # BLOCO 2: RADAR
+                # RADAR
                 st.divider()
                 st.markdown(f"<h2 style='color:#6b6399;'>🔭 Radar de Crescimento (< 1.000 Subs)</h2>", unsafe_allow_html=True)
                 if len(radar) > 0:

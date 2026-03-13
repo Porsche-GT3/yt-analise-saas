@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v6.4", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v6.6", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -44,7 +44,7 @@ def request_hydra(url, params, keys_list):
             if resp.status_code == 200:
                 return resp.json(), None
             if resp.status_code in [403, 429]:
-                print(f"Chave {i+1} esgotada. Trocando para a próxima...")
+                print(f"Chave {i+1} esgotada. Trocando...")
                 continue
             return None, f"Erro API (Chave {i+1}): {resp.text}"
         except Exception as e:
@@ -62,7 +62,7 @@ def buscar_top_videos(channel_id, keys_str):
         return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10]} for i in d.get("items", [])]
     except: return []
 
-# --- BUSCA SNIPER COM ENGENHARIA REVERSA (O SEGREDO) ---
+# --- BUSCA HÍBRIDA POR CONTEÚDO (NÃO POR NOME DE CANAL) ---
 @st.cache_data(ttl=21600, show_spinner=False)
 def buscar_micro_nicho(palavra_chave, keys_str):
     keys = get_api_keys_list(keys_str)
@@ -71,7 +71,7 @@ def buscar_micro_nicho(palavra_chave, keys_str):
     canais_unicornios = []
     canais_secundarios = []
     
-    # 1. PEGAR A DATA DE 3 MESES ATRÁS (90 dias)
+    # PEGAR A DATA DE 3 MESES ATRÁS (Limita a busca a vídeos postados recentemente)
     data_limite = datetime.datetime.now() - timedelta(days=90)
     published_after = data_limite.isoformat("T") + "Z"
     
@@ -79,16 +79,16 @@ def buscar_micro_nicho(palavra_chave, keys_str):
     lote_canais = []
     next_page_token = None
     
-    # FASE 1: VARREDURA DE VÍDEOS (Engenharia Reversa)
-    # Buscamos até 300 VÍDEOS (não canais) que estejam bombando sobre o tema, postados recentemente.
-    for page in range(6): 
+    # FASE 1: ACHAR OS VÍDEOS QUE CONTÊM A PALAVRA-CHAVE (Engenharia Reversa)
+    # Aumentei para 10 páginas (500 vídeos) para garantir que ache os 5 canais difíceis.
+    for page in range(10): 
         params_busca = {
             "part": "snippet",
             "q": palavra_chave,
-            "type": "video",       # PROCURAR VÍDEO (Pega o conteúdo real)
+            "type": "video", # Procura no Título, Descrição e Tags do VÍDEO
             "maxResults": 50,
-            "order": "viewCount",  # Ordenado por Views (Para achar quem está viralizando)
-            "publishedAfter": published_after # Força a achar só vídeos recentes
+            "order": "relevance", 
+            "publishedAfter": published_after # Só vídeos dos últimos 3 meses
         }
         if next_page_token:
             params_busca["pageToken"] = next_page_token
@@ -97,7 +97,6 @@ def buscar_micro_nicho(palavra_chave, keys_str):
         if erro or not dados_busca or "items" not in dados_busca: 
             break
             
-        # Extrai os donos dos vídeos (Canais)
         for item in dados_busca.get("items", []):
             try:
                 cid = item["snippet"]["channelId"]
@@ -110,8 +109,7 @@ def buscar_micro_nicho(palavra_chave, keys_str):
         if not next_page_token: 
             break
 
-    # FASE 2: ANÁLISE DOS CANAIS (Raio-X)
-    # A API só permite analisar 50 canais por vez. Quebramos nossa lista em lotes de 50.
+    # FASE 2: ANALISAR OS DONOS DOS VÍDEOS E APLICAR AS REGRAS ESTRITAS
     for i in range(0, len(lote_canais), 50):
         chunk = lote_canais[i:i+50]
         
@@ -135,7 +133,7 @@ def buscar_micro_nicho(palavra_chave, keys_str):
                 else: 
                     dias_vida = 9999
                 
-                # REGRA MESTRE ABSOLUTA: Todos devem ter no máximo 3 meses (90 dias)
+                # SÓ CANAIS CRIADOS HÁ NO MÁXIMO 3 MESES (90 dias)
                 if dias_vida <= 90:
                     media_views = views / videos if videos > 0 else 0
                     viral_score = media_views / subs if subs > 0 else 0
@@ -151,28 +149,28 @@ def buscar_micro_nicho(palavra_chave, keys_str):
                         "id": canal['id']
                     }
                     
-                    # BIFURCAÇÃO: 
-                    # Unicórnio (>= 1k subs E <= 70 vídeos)
-                    if subs >= 1000 and videos <= 70:
+                    # AS 3 REGRAS DE OURO CRAVADAS
+                    if subs >= 1000 and videos <= 70 and dias_vida <= 90:
                         canal_dict["Status"] = f"🎯 UNICÓRNIO"
                         if canal_dict not in canais_unicornios:
                             canais_unicornios.append(canal_dict)
-                    # Secundário / Radar de Crescimento
+                            
+                    # RADAR DE APROXIMAÇÃO (Menos de 3 meses, mas falhou em subs ou videos)
                     else:
-                        canal_dict["Status"] = f"🌱 EM CRESCIMENTO"
+                        canal_dict["Status"] = f"🌱 RADAR"
                         if canal_dict not in canais_secundarios:
                             canais_secundarios.append(canal_dict)
 
             except Exception as e: 
                 continue
-        
-        # Otimização: Se já achou muito, pode parar
-        if len(canais_unicornios) >= 15 and len(canais_secundarios) >= 30:
+                
+        # OTIMIZAÇÃO: Para assim que achar os 5 Unicórnios Exigidos
+        if len(canais_unicornios) >= 5 and len(canais_secundarios) >= 10:
             break
 
     # Ordenações
     canais_unicornios.sort(key=lambda x: x["Viral Score"], reverse=True)
-    canais_secundarios.sort(key=lambda x: x["Inscritos"], reverse=True) 
+    canais_secundarios.sort(key=lambda x: x["Inscritos"], reverse=True) # Aproximação por inscritos
     
     return canais_unicornios, canais_secundarios[:10], None 
 
@@ -181,7 +179,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v6.4</h2><p>Reverse Engineering Engine</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v6.6</h2><p>Strict Sniper (Max 70 Vídeos)</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("User"); p=st.text_input("Pass", type="password")
             if st.form_submit_button("🚀 Entrar"):
@@ -194,28 +192,28 @@ def app_principal():
     
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        st.markdown("📍 **Modo:** Engenharia Reversa (Global)")
+        st.markdown("📍 **Modo:** Strict Sniper (Conteúdo)")
         st.divider()
-        st.info("**🎯 Regras Unicórnio:**\n\n✅ Min 1.000 Inscritos\n✅ Max 70 Vídeos\n✅ Max 3 Meses")
-        st.info("**🌱 Regras Radar (Top 10):**\n\n✅ Max 3 Meses\n✅ Quase lá (Subindo de Inscritos)")
+        st.info("**🎯 Regras Unicórnio:**\n\n✅ Min 1.000 Inscritos\n✅ Max 70 Vídeos\n✅ Max 3 Meses (90d)")
+        st.info("**🌱 Regras Radar (Top 10):**\n\n✅ Max 3 Meses\n✅ Quase lá nas outras regras")
         st.divider()
         if st.button("Sair"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Motor de Busca Apurado</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Procura <b>vídeos virais</b> primeiro, depois encontra os donos (Canais) e aplica as regras.</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Sniper de Conteúdo Strict</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Ele busca <b>VÍDEOS</b> que contenham a palavra-chave e depois filtra os donos dos canais.</p>", unsafe_allow_html=True)
 
     with st.form("f_sniper"):
         
         c1, c2 = st.columns([3, 1])
-        palavra_chave = c1.text_input("Nicho, Sub-nicho ou Micro-nicho:", placeholder="Ex: holy bible, food, dark history...")
+        palavra_chave = c1.text_input("Nicho, Sub-nicho ou Micro-nicho:", placeholder="Ex: holy bible, food, rain sounds...")
         k = api_key_env if api_key_env else c2.text_input("API Keys (Hydra)", type="password")
         
         st.write("")
-        b = st.form_submit_button("🌍 Iniciar Engenharia Reversa")
+        b = st.form_submit_button("🌍 Iniciar Varredura de Conteúdo")
         
     if b and palavra_chave:
         
-        with st.spinner(f"Extraindo dados dos vídeos virais sobre '{palavra_chave}' no mundo..."):
+        with st.spinner(f"Analisando os vídeos que falam sobre '{palavra_chave}' no mundo todo..."):
             unicornios, secundarios, erro = buscar_micro_nicho(palavra_chave, k)
             
             if erro:
@@ -226,19 +224,19 @@ def app_principal():
                 # BLOCO 1: UNICÓRNIOS PERFEITOS
                 # ==========================================
                 st.divider()
-                st.markdown(f"<h2 style='color:#8b5cf6;'>🎯 Canais Unicórnios (Atendem TODAS as Regras)</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='color:#8b5cf6;'>🎯 Canais Unicórnios (≤ 3 Meses, ≥ 1k Subs, ≤ 70 Vídeos)</h2>", unsafe_allow_html=True)
                 
                 qtd_uni = len(unicornios)
                 if qtd_uni >= 5:
-                    st.success(f"Excelente! Encontramos {qtd_uni} canais globais perfeitos para '{palavra_chave}'!")
+                    st.success(f"Excelente! Encontramos os 5+ canais perfeitos que falam sobre '{palavra_chave}'!")
                 elif qtd_uni > 0:
-                    st.warning(f"Encontramos {qtd_uni} canais globais perfeitos. A meta era 5, o nicho pode estar inexplorado!")
+                    st.warning(f"Encontramos {qtd_uni} canais perfeitos. A meta era 5, o que indica que esse nicho exato tem poucos canais novos batendo os 1k de subs com menos de 70 vídeos.")
                 else:
-                    st.error("Nenhum canal no mundo atendeu 100% das regras rígidas para esse termo. Mas veja o Radar de crescimento abaixo!")
+                    st.error(f"Nenhum canal no mundo atendeu 100% das regras para os vídeos de '{palavra_chave}'. Os criadores que existem são mais velhos ou já passaram dos 70 vídeos. Veja o Radar abaixo!")
 
                 if qtd_uni > 0:
                     cols = st.columns(3)
-                    for i, r in enumerate(unicornios[:9]): 
+                    for i, r in enumerate(unicornios): 
                         with cols[i%3]:
                             st.markdown(f"""
                             <div class='gold-card'>
@@ -249,7 +247,7 @@ def app_principal():
                                 <a href='{r['Link']}' target='_blank' class='visit-btn'>Acessar Canal ↗</a>
                             </div>""", unsafe_allow_html=True)
                             
-                            with st.expander("Ver Vídeos de Sucesso"):
+                            with st.expander("Ver Vídeos Deste Canal"):
                                 vs = buscar_top_videos(r['id'], k)
                                 if vs:
                                     texto_vid = ""
@@ -258,11 +256,11 @@ def app_principal():
                                     st.code(texto_vid, language='text')
 
                 # ==========================================
-                # BLOCO 2: RADAR DE APROXIMAÇÃO (SECUNDÁRIOS)
+                # BLOCO 2: RADAR DE APROXIMAÇÃO (TOP 10)
                 # ==========================================
                 st.divider()
-                st.markdown(f"<h2 style='color:#6b6399;'>🔭 Radar: Top 10 Canais de Aproximação (Criados há ≤ 3 meses)</h2>", unsafe_allow_html=True)
-                st.markdown("Estes canais postaram vídeos virais recentemente e estão em fase de teste. Fique de olho neles!")
+                st.markdown(f"<h2 style='color:#6b6399;'>🔭 Radar de Aproximação (Criados há ≤ 3 meses)</h2>", unsafe_allow_html=True)
+                st.markdown("Estes canais postaram sobre o tema recentemente. Eles têm menos de 3 meses de vida, mas não bateram os 1000 inscritos **OU** ultrapassaram o limite de 70 vídeos.")
                 
                 if len(secundarios) > 0:
                     df_sec = pd.DataFrame(secundarios)
@@ -275,7 +273,7 @@ def app_principal():
                         hide_index=True
                     )
                 else:
-                    st.info("Não encontramos canais recentes (< 3 meses) aproximados para essa busca global.")
+                    st.warning("Não encontramos canais recentes (< 3 meses) aproximados para essa busca global.")
 
 if st.session_state['logado']: app_principal()
 else: tela_login()

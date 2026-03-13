@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v8.3", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v8.4", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -43,11 +43,11 @@ def request_hydra(url, params, keys_list):
             if resp.status_code == 200:
                 return resp.json(), None
             if resp.status_code in [403, 429]:
-                continue # Tenta a próxima chave se exceder a cota
-            return None, f"Erro API (Chave {i+1}): {resp.text}"
+                continue # Tenta a próxima chave
+            return None, f"Erro da API do YouTube (Código {resp.status_code}): {resp.text}"
         except Exception as e:
             continue
-    return None, "💀 Todas as chaves falharam (Cota Total Excedida)."
+    return None, "💀 COTA EXCEDIDA OU CHAVE INVÁLIDA: Todas as chaves falharam. O seu limite diário do YouTube acabou."
 
 def buscar_top_videos(channel_id, keys_str):
     keys = get_api_keys_list(keys_str)
@@ -60,25 +60,25 @@ def buscar_top_videos(channel_id, keys_str):
         return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10]} for i in d.get("items", [])]
     except: return []
 
-# --- BUSCA DE REDE TRIPLA ---
-@st.cache_data(ttl=21600, show_spinner=False)
-def buscar_gems_universal(palavra_chave, keys_str):
+# --- BUSCA COM DEBUGGER (CACHE DESATIVADO PARA TESTE) ---
+def buscar_gems_universal(palavra_chave, keys_str, status_box):
     keys = get_api_keys_list(keys_str)
     if not keys: return None, None, "Chave necessária"
     
     gems_encontradas = []
     radar_quase_la = []
-    
     canais_vistos = set()
     lote_canais = []
     
-    # REDE 1: BUSCA DIRETA POR CANAIS
+    # REDE 1: BUSCA DE CANAIS DIRETA
+    status_box.write("📡 A lançar Rede 1: Pesquisando por Canais diretos...")
     next_page = None
-    for _ in range(4): 
+    for _ in range(3): 
         params = {"part": "snippet", "q": palavra_chave, "type": "channel", "maxResults": 50, "order": "relevance"}
         if next_page: params["pageToken"] = next_page
         d_canais, e = request_hydra("https://www.googleapis.com/youtube/v3/search", params, keys)
-        if e or not d_canais: break
+        if e: return None, None, e
+        if not d_canais: break
         for item in d_canais.get("items", []):
             cid = item["snippet"]["channelId"]
             if cid not in canais_vistos:
@@ -86,18 +86,20 @@ def buscar_gems_universal(palavra_chave, keys_str):
                 lote_canais.append(cid)
         next_page = d_canais.get("nextPageToken")
         if not next_page: break
+    status_box.write(f"✅ Rede 1 concluída. Canais únicos até agora: {len(lote_canais)}")
 
-    # Data limite para as próximas redes (Últimos 90 dias)
+    # REDE 2: BUSCA DE VÍDEOS (Relevância)
     data_limite = datetime.datetime.now() - timedelta(days=90)
     pub_after = data_limite.isoformat("T") + "Z"
-
-    # REDE 2: BUSCA VÍDEOS POR RELEVÂNCIA
+    
+    status_box.write("📡 A lançar Rede 2: Pesquisando donos de Vídeos recentes sobre o tema...")
     next_page = None
     for _ in range(4): 
         params = {"part": "snippet", "q": palavra_chave, "type": "video", "maxResults": 50, "order": "relevance", "publishedAfter": pub_after}
         if next_page: params["pageToken"] = next_page
         d_videos, e = request_hydra("https://www.googleapis.com/youtube/v3/search", params, keys)
-        if e or not d_videos: break
+        if e: return None, None, e
+        if not d_videos: break
         for item in d_videos.get("items", []):
             cid = item["snippet"]["channelId"]
             if cid not in canais_vistos:
@@ -105,27 +107,15 @@ def buscar_gems_universal(palavra_chave, keys_str):
                 lote_canais.append(cid)
         next_page = d_videos.get("nextPageToken")
         if not next_page: break
+    status_box.write(f"✅ Rede 2 concluída. Canais únicos totais: {len(lote_canais)}")
 
-    # REDE 3: BUSCA VÍDEOS POR VIRALIZAÇÃO
-    next_page = None
-    for _ in range(5): 
-        params = {"part": "snippet", "q": palavra_chave, "type": "video", "maxResults": 50, "order": "viewCount", "publishedAfter": pub_after}
-        if next_page: params["pageToken"] = next_page
-        d_videos, e = request_hydra("https://www.googleapis.com/youtube/v3/search", params, keys)
-        if e or not d_videos: break
-        for item in d_videos.get("items", []):
-            cid = item["snippet"]["channelId"]
-            if cid not in canais_vistos:
-                canais_vistos.add(cid)
-                lote_canais.append(cid)
-        next_page = d_videos.get("nextPageToken")
-        if not next_page: break
-
-    # FASE 4: A PENEIRA CRUEL
+    # FASE 3: RAIO-X DOS CANAIS
+    status_box.write(f"⚙️ A extrair dados reais de {len(lote_canais)} canais (Inscritos, Total de Vídeos)...")
     for i in range(0, len(lote_canais), 50):
         chunk = lote_canais[i:i+50]
         stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(chunk)}, keys)
-        if stats_erro or not stats_dados: continue
+        if stats_erro: return None, None, stats_erro
+        if not stats_dados: continue
             
         for canal in stats_dados.get("items", []):
             try:
@@ -151,21 +141,17 @@ def buscar_gems_universal(palavra_chave, keys_str):
                     "id": canal['id']
                 }
 
-                # --- AS REGRAS MESTRAS: MÁXIMO 100 VÍDEOS ---
+                # REGRAS APLICADAS
                 if videos <= 100:
-                    
-                    # 💎 GEMS: Bateu ou ultrapassou 1000 subscritores
                     if subs >= 1000:
                         gems_encontradas.append(canal_dict)
-                        
-                    # 🌱 RADAR: Menos de 1000 subscritores
                     else:
                         radar_quase_la.append(canal_dict)
-
             except Exception as e: 
                 continue
 
-    # Ordenações
+    status_box.write(f"🎯 Filtragem concluída! Sobraram: {len(gems_encontradas)} GEMS e {len(radar_quase_la)} no Radar.")
+
     gems_encontradas.sort(key=lambda x: x["Viral Score"], reverse=True)
     radar_quase_la.sort(key=lambda x: x["Inscritos"], reverse=True) 
     
@@ -176,7 +162,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.3</h2><p>Long-Tail & GEMS Edition</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.4</h2><p>Debugger Edition</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("Utilizador"); p=st.text_input("Palavra-passe", type="password")
             if st.form_submit_button("🚀 Iniciar Sessão"):
@@ -189,48 +175,42 @@ def app_principal():
     
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        st.markdown("📍 **Modo:** Arrastão Universal")
+        st.markdown("📍 **Modo:** Debugger Aberto")
         st.divider()
-        st.info("**💎 Regra Ouro:**\n\n✅ Mín. 1.000 Subscritores\n✅ Máx. 100 Vídeos Totais\n✅ Suporta Cauda Longa")
-        st.info("**🌱 Radar (Aproximação):**\n\n✅ Máx. 100 Vídeos\n✅ Menos de 1k Subs")
+        st.info("**💎 Regra Ouro:**\n\n✅ Mín. 1.000 Subscritores\n✅ Máx. 100 Vídeos Totais")
         st.divider()
         if st.button("Terminar Sessão"): st.session_state['logado']=False; st.rerun()
 
     st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Motor GEMS Universal</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>A Rede Tripla força a API a encontrar canais usando palavras curtas ou frases de cauda longa.</p>", unsafe_allow_html=True)
 
     with st.form("f_sniper"):
         c1, c2 = st.columns([3, 1])
-        palavra_chave = c1.text_input("Palavra-chave (Curta ou de Cauda Longa em qualquer idioma):", placeholder="Ex: 'bible' (curta) ou 'hidden bible secrets revealed' (longa)...")
-        k = api_key_env if api_key_env else c2.text_input("Chaves de API (Hydra)", type="password")
+        palavra_chave = c1.text_input("Palavra-chave (Curta ou de Cauda Longa):", placeholder="Ex: 'bible hidden'...")
+        k = api_key_env if api_key_env else c2.text_input("Chave API (Obrigatório)", type="password")
         
         st.write("")
         b = st.form_submit_button("🌍 Buscar GEMS (Até 100 vídeos)")
         
     if b and palavra_chave:
         
-        with st.spinner(f"A lançar a Rede Tripla no YouTube para '{palavra_chave}'... Isto pode levar alguns segundos."):
-            gems, radar, erro = buscar_gems_universal(palavra_chave, k)
+        # MONITOR DE BATALHA (TERMINAL)
+        with st.status(f"A executar Motor Blueberry para '{palavra_chave}'...", expanded=True) as status_box:
+            gems, radar, erro = buscar_gems_universal(palavra_chave, k, status_box)
             
             if erro:
-                st.error(erro)
+                status_box.update(label="Falha na Busca!", state="error", expanded=True)
+                st.error(f"🚨 ERRO CRÍTICO NA API:\n{erro}")
+                st.warning("💡 Dica: Se o erro diz 'Cota Excedida' ou '403', a sua chave do YouTube esgotou o limite de 10.000 pontos diários. Como esta ferramenta faz pesquisas profundas, consome cota rapidamente. Adicione uma segunda chave (separada por vírgula) ou teste novamente amanhã.")
             else:
+                status_box.update(label="Busca Concluída com Sucesso!", state="complete", expanded=False)
                 
-                # ==========================================
-                # BLOCO 1: AS GEMS ENCONTRADAS (CRITÉRIO PERFEITO)
-                # ==========================================
+                # BLOCO 1: GEMS
                 st.divider()
                 st.markdown(f"<h2 style='color:#8b5cf6;'>💎 Canais GEM (≤ 100 vídeos, ≥ 1.000 Subs)</h2>", unsafe_allow_html=True)
                 
                 qtd_gems = len(gems)
-                if qtd_gems >= 5:
-                    st.success(f"Missão Cumprida! Encontrámos {qtd_gems} canais GEMS autênticos para '{palavra_chave}'.")
-                elif qtd_gems > 0:
-                    st.warning(f"Encontrámos {qtd_gems} canais GEMS. A meta era 5, o que significa que encontrou os pioneiros num nicho ainda com muito espaço!")
-                else:
-                    st.error(f"Nenhum canal com até 100 vídeos e mais de 1k subscritores foi detetado. Verifique o Radar abaixo para ver os que estão a crescer!")
-
                 if qtd_gems > 0:
+                    st.success(f"Encontrámos {qtd_gems} canais GEMS para '{palavra_chave}'.")
                     cols = st.columns(3)
                     for i, r in enumerate(gems[:18]): 
                         with cols[i%3]:
@@ -241,30 +221,15 @@ def app_principal():
                                 <p>📹 <b>{r['Vídeos']} vídeos</b> | 👥 <b>{r['Inscritos']:,}</b></p>
                                 <a href='{r['Link']}' target='_blank' class='visit-btn'>Aceder ao Canal ↗</a>
                             </div>""", unsafe_allow_html=True)
-                            
-                            with st.expander("Ver Últimos Vídeos Virais"):
-                                vs = buscar_top_videos(r['id'], k)
-                                if vs:
-                                    texto_vid = ""
-                                    for v in vs:
-                                        texto_vid += f"- {v['titulo']}\n"
-                                    st.code(texto_vid, language='text')
+                else:
+                    st.error(f"Nenhum canal com até 100 vídeos e mais de 1k subscritores sobre '{palavra_chave}'.")
 
-                # ==========================================
-                # BLOCO 2: RADAR (< 1.000 Subs)
-                # ==========================================
+                # BLOCO 2: RADAR
                 st.divider()
                 st.markdown(f"<h2 style='color:#6b6399;'>🔭 Radar de Crescimento (≤ 100 vídeos & < 1.000 Subs)</h2>", unsafe_allow_html=True)
-                
                 if len(radar) > 0:
                     df_rad = pd.DataFrame(radar)
-                    st.dataframe(
-                        df_rad[['Canal', 'Vídeos', 'Inscritos', 'Média Views', 'Link']], 
-                        column_config={"Link": st.column_config.LinkColumn("Link", display_text="Ver no YouTube ↗")}, 
-                        use_container_width=True, hide_index=True
-                    )
-                else:
-                    st.info("Nenhum canal recente encontrado a competir nestas métricas.")
+                    st.dataframe(df_rad[['Canal', 'Vídeos', 'Inscritos', 'Link']], column_config={"Link": st.column_config.LinkColumn("Link")}, use_container_width=True, hide_index=True)
 
 if st.session_state['logado']: app_principal()
 else: tela_login()

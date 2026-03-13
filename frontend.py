@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v8.2", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v8.3", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -60,7 +60,7 @@ def buscar_top_videos(channel_id, keys_str):
         return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10]} for i in d.get("items", [])]
     except: return []
 
-# --- BUSCA DE REDE TRIPLA (Apanha canais que quebram a bolha) ---
+# --- BUSCA DE REDE TRIPLA ---
 @st.cache_data(ttl=21600, show_spinner=False)
 def buscar_gems_universal(palavra_chave, keys_str):
     keys = get_api_keys_list(keys_str)
@@ -72,7 +72,7 @@ def buscar_gems_universal(palavra_chave, keys_str):
     canais_vistos = set()
     lote_canais = []
     
-    # REDE 1: BUSCA DIRETA POR CANAIS (Relevância de nome)
+    # REDE 1: BUSCA DIRETA POR CANAIS
     next_page = None
     for _ in range(4): 
         params = {"part": "snippet", "q": palavra_chave, "type": "channel", "maxResults": 50, "order": "relevance"}
@@ -91,7 +91,7 @@ def buscar_gems_universal(palavra_chave, keys_str):
     data_limite = datetime.datetime.now() - timedelta(days=90)
     pub_after = data_limite.isoformat("T") + "Z"
 
-    # REDE 2: BUSCA VÍDEOS POR RELEVÂNCIA (O clássico)
+    # REDE 2: BUSCA VÍDEOS POR RELEVÂNCIA
     next_page = None
     for _ in range(4): 
         params = {"part": "snippet", "q": palavra_chave, "type": "video", "maxResults": 50, "order": "relevance", "publishedAfter": pub_after}
@@ -106,7 +106,7 @@ def buscar_gems_universal(palavra_chave, keys_str):
         next_page = d_videos.get("nextPageToken")
         if not next_page: break
 
-    # REDE 3: BUSCA VÍDEOS POR VIRALIZAÇÃO - VIEWCOUNT (O Segredo)
+    # REDE 3: BUSCA VÍDEOS POR VIRALIZAÇÃO
     next_page = None
     for _ in range(5): 
         params = {"part": "snippet", "q": palavra_chave, "type": "video", "maxResults": 50, "order": "viewCount", "publishedAfter": pub_after}
@@ -121,7 +121,7 @@ def buscar_gems_universal(palavra_chave, keys_str):
         next_page = d_videos.get("nextPageToken")
         if not next_page: break
 
-    # FASE 4: A PENEIRA CRUEL (O Raio-X dos Canais)
+    # FASE 4: A PENEIRA CRUEL
     for i in range(0, len(lote_canais), 50):
         chunk = lote_canais[i:i+50]
         stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(chunk)}, keys)
@@ -151,7 +151,7 @@ def buscar_gems_universal(palavra_chave, keys_str):
                     "id": canal['id']
                 }
 
-                # --- NOVAS REGRAS MESTRAS CRAVADAS: MÁXIMO 100 VÍDEOS ---
+                # --- AS REGRAS MESTRAS: MÁXIMO 100 VÍDEOS ---
                 if videos <= 100:
                     
                     # 💎 GEMS: Bateu ou ultrapassou 1000 subscritores
@@ -176,7 +176,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.2</h2><p>Limit Extended (100 Vídeos)</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v8.3</h2><p>Long-Tail & GEMS Edition</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("Utilizador"); p=st.text_input("Palavra-passe", type="password")
             if st.form_submit_button("🚀 Iniciar Sessão"):
@@ -189,19 +189,19 @@ def app_principal():
     
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        st.markdown("📍 **Modo:** Arrastão GEMS (Global)")
+        st.markdown("📍 **Modo:** Arrastão Universal")
         st.divider()
-        st.info("**💎 Regra Ouro:**\n\n✅ Mín. 1.000 Subscritores\n✅ Máx. 100 Vídeos Totais")
+        st.info("**💎 Regra Ouro:**\n\n✅ Mín. 1.000 Subscritores\n✅ Máx. 100 Vídeos Totais\n✅ Suporta Cauda Longa")
         st.info("**🌱 Radar (Aproximação):**\n\n✅ Máx. 100 Vídeos\n✅ Menos de 1k Subs")
         st.divider()
         if st.button("Terminar Sessão"): st.session_state['logado']=False; st.rerun()
 
-    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Motor GEMS Definitivo</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>A Rede Tripla força a API a encontrar canais que furaram a bolha em qualquer lugar do mundo.</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Motor GEMS Universal</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>A Rede Tripla força a API a encontrar canais usando palavras curtas ou frases de cauda longa.</p>", unsafe_allow_html=True)
 
     with st.form("f_sniper"):
         c1, c2 = st.columns([3, 1])
-        palavra_chave = c1.text_input("Palavra-chave (Qualquer idioma):", placeholder="Ex: bible hidden, reddit, dark history...")
+        palavra_chave = c1.text_input("Palavra-chave (Curta ou de Cauda Longa em qualquer idioma):", placeholder="Ex: 'bible' (curta) ou 'hidden bible secrets revealed' (longa)...")
         k = api_key_env if api_key_env else c2.text_input("Chaves de API (Hydra)", type="password")
         
         st.write("")

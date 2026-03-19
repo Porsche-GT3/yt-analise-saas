@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Blueberry Finder AI v9.0", page_icon="🫐", layout="wide")
+st.set_page_config(page_title="Blueberry Finder AI v9.1", page_icon="🫐", layout="wide")
 
 # --- CSS "BLUEBERRY UNICORN THEME" ---
 st.markdown("""
@@ -62,7 +62,7 @@ def buscar_top_videos(channel_id, keys_str):
         return [{"titulo": i["snippet"]["title"], "data": i["snippet"]["publishedAt"][:10]} for i in d.get("items", [])]
     except: return []
 
-# --- UTILITÁRIOS DE DURAÇÃO ---
+# --- UTILITÁRIOS ---
 def duration_to_seconds(duration_str):
     match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration_str)
     if not match: return 0
@@ -71,7 +71,6 @@ def duration_to_seconds(duration_str):
     s = int(match.group(3) or 0)
     return h * 3600 + m * 60 + s
 
-# --- RAIO-X DE PLAYLIST (Idade + Formato Longo) ---
 def verificar_canal_valido(uploads_id, keys_list, data_limite):
     next_page = None
     video_ids = []
@@ -116,8 +115,24 @@ def verificar_canal_valido(uploads_id, keys_list, data_limite):
 
     return tem_video_longo
 
+# --- FILTRO ANTI-FANTASMA (NOVIDADE) ---
+def contar_videos_publicos_reais(uploads_id, keys_list):
+    """Garante que os vídeos não foram apagados ou colocados em privado."""
+    params = {"part": "snippet", "playlistId": uploads_id, "maxResults": 15}
+    data, err = request_hydra("https://www.googleapis.com/youtube/v3/playlistItems", params, keys_list)
+    if err or not data: return 0
+    
+    count = 0
+    items = data.get("items", [])
+    for item in items:
+        title = item.get("snippet", {}).get("title", "")
+        # O YouTube devolve estes títulos exatos quando um vídeo é apagado ou privado
+        if title and title != "Deleted video" and title != "Private video":
+            count += 1
+    return count
+
 # =====================================================================
-# MOTOR 1: VALIDADOR ABSOLUTO (GEMS CLASSICAS - NÃO MEXIDO)
+# MOTOR 1: VALIDADOR ABSOLUTO
 # =====================================================================
 def buscar_gems_universal(palavra_chave, keys_str, status_box):
     keys = get_api_keys_list(keys_str)
@@ -125,7 +140,6 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
     
     gems_encontradas, radar_quase_la, canais_vistos, lote_canais = [], [], set(), []
     
-    # REDE 1
     status_box.write("📡 Rede 1: Pesquisando canais por relevância de nome...")
     next_page = None
     for _ in range(3): 
@@ -142,13 +156,11 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
         next_page = d_canais.get("nextPageToken")
         if not next_page: break
 
-    # REDES 2 E 3
     dias_limite = 105
     data_limite_3_5_meses = datetime.datetime.now() - timedelta(days=dias_limite)
     pub_after = data_limite_3_5_meses.isoformat("T") + "Z"
     
     status_box.write("📡 Rede 2 e 3: Rastreado vídeos publicados nos últimos 3.5 meses...")
-    
     for order_type in ["relevance", "viewCount"]:
         next_page = None
         for _ in range(3 if order_type == "relevance" else 4): 
@@ -165,9 +177,7 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
             next_page = d_videos.get("nextPageToken")
             if not next_page: break
 
-    # FASE 4: O GRANDE FILTRO
     status_box.write(f"⚙️ Analisando dados de {len(lote_canais)} canais únicos...")
-    
     for i in range(0, len(lote_canais), 50):
         chunk = lote_canais[i:i+50]
         stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet,contentDetails", "id": ",".join(chunk)}, keys)
@@ -206,7 +216,7 @@ def buscar_gems_universal(palavra_chave, keys_str, status_box):
     return gems_encontradas, radar_quase_la[:15], None 
 
 # =====================================================================
-# MOTOR 2: CAÇADOR DE DIAMANTES BRUTOS (NOVO - PRE MONETIZAÇÃO)
+# MOTOR 2: CAÇADOR DE DIAMANTES BRUTOS (ANTI-FANTASMA)
 # =====================================================================
 def buscar_diamantes_brutos(palavra_chave, keys_str, status_box):
     keys = get_api_keys_list(keys_str)
@@ -216,15 +226,11 @@ def buscar_diamantes_brutos(palavra_chave, keys_str, status_box):
     canais_vistos = set()
     lote_canais = []
     
-    # Para evitar canais mortos de 10 anos atrás com 1 vídeo viral de 2012, 
-    # vamos buscar vídeos que bombaram no último 1 ano. 
-    # A idade do canal não importa, mas o vídeo tem que ser razoavelmente recente.
     data_limite = datetime.datetime.now() - timedelta(days=365)
     pub_after = data_limite.isoformat("T") + "Z"
 
     status_box.write("📡 Escaneando o YouTube em busca de anomalias (Vídeos com visualizações massivas)...")
     
-    # Busca apenas por Vídeos bombados
     for order_type in ["viewCount", "relevance"]:
         next_page = None
         for _ in range(5): 
@@ -241,11 +247,11 @@ def buscar_diamantes_brutos(palavra_chave, keys_str, status_box):
             next_page = d_videos.get("nextPageToken")
             if not next_page: break
 
-    status_box.write(f"⚙️ Raio-X em {len(lote_canais)} canais. Aplicando a Regra do Diamante (1 a 6 vídeos, < 1k Subs, > 10k Views)...")
+    status_box.write(f"⚙️ Raio-X em {len(lote_canais)} canais. Filtrando vídeos apagados/fantasmas...")
     
     for i in range(0, len(lote_canais), 50):
         chunk = lote_canais[i:i+50]
-        stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet", "id": ",".join(chunk)}, keys)
+        stats_dados, stats_erro = request_hydra("https://www.googleapis.com/youtube/v3/channels", {"part": "statistics,snippet,contentDetails", "id": ",".join(chunk)}, keys)
         if stats_erro: return None, stats_erro
         if not stats_dados: continue
             
@@ -256,18 +262,27 @@ def buscar_diamantes_brutos(palavra_chave, keys_str, status_box):
                 
                 subs = int(stats.get("subscriberCount", 0))
                 views = int(stats.get("viewCount", 0))
-                videos = int(stats.get("videoCount", 0))
                 
-                # REGRAS DO DIAMANTE BRUTO
-                if videos >= 1 and videos <= 6 and subs < 1000:
-                    media_views = views / videos
+                # Para poupar a API, só verificamos a fundo quem já parece ter menos de 1k subs e poucos vídeos
+                videos_teoricos = int(stats.get("videoCount", 0))
+                if videos_teoricos == 0 or videos_teoricos > 10 or subs >= 1000:
+                    continue
+
+                uploads_id = canal.get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads")
+                if not uploads_id: continue
+                
+                # --- O FILTRO ANTI-FANTASMA ---
+                qtd_real = contar_videos_publicos_reais(uploads_id, keys)
+                
+                # REGRAS DO DIAMANTE COM A QUANTIDADE REAL DE VÍDEOS
+                if qtd_real >= 1 and qtd_real <= 6:
+                    media_views = views / qtd_real
                     
-                    # Filtro de Anomalia: Média de mais de 10k views por vídeo
                     if media_views >= 10000:
                         diamante_dict = {
                             "Canal": snippet.get("title", ""),
                             "Inscritos": subs,
-                            "Vídeos": videos,
+                            "Vídeos": qtd_real, # Usamos o valor real em vez do número em cache
                             "Média Views": int(media_views),
                             "Total Views": views,
                             "Link": f"https://www.youtube.com/channel/{canal['id']}",
@@ -277,11 +292,8 @@ def buscar_diamantes_brutos(palavra_chave, keys_str, status_box):
             except Exception as e: 
                 continue
 
-    status_box.write(f"🎯 Busca concluída! {len(diamantes_encontrados)} Diamantes encontrados.")
-
-    # Ordena pelos que tem a maior média de visualizações
+    status_box.write(f"🎯 Busca concluída! {len(diamantes_encontrados)} Diamantes 100% online encontrados.")
     diamantes_encontrados.sort(key=lambda x: x["Média Views"], reverse=True)
-    
     return diamantes_encontrados, None
 
 # --- LOGIN ---
@@ -289,7 +301,7 @@ if 'logado' not in st.session_state: st.session_state['logado'] = False
 def tela_login():
     c1,c2,c3=st.columns([1,1,1])
     with c2:
-        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v9.0</h2><p>Diamond Hunter Edition</p></div><br>", unsafe_allow_html=True)
+        st.markdown("<br><div style='background:rgba(255,255,255,0.9); padding:30px; border-radius:30px; text-align:center; border:2px solid #eaddff;'><h1 style='color:#5a4fcf;'>🫐</h1><h2 style='color:#3d3563;'>Blueberry Finder AI v9.1</h2><p>Ghost-Proof Edition</p></div><br>", unsafe_allow_html=True)
         with st.form("l"):
             u=st.text_input("Utilizador"); p=st.text_input("Palavra-passe", type="password")
             if st.form_submit_button("🚀 Iniciar Sessão"):
@@ -302,7 +314,6 @@ def app_principal():
     
     with st.sidebar:
         st.markdown("### Menu 🫐")
-        # --- NOVO MENU DE NAVEGAÇÃO ---
         modo = st.radio("Escolha o Modo Operacional:", [
             "🏆 Validador Absoluto (Gems)", 
             "💎 Diamantes Brutos (Pré-Monetização)"
@@ -312,14 +323,12 @@ def app_principal():
         if modo == "🏆 Validador Absoluto (Gems)":
             st.info("**🎯 Regras de Validação:**\n\n✅ Exige 4 a 5 Canais\n✅ Mín. 1k Subs\n✅ Máx. 100 Vídeos\n✅ TODOS os vídeos c/ ≤ 3.5 meses\n✅ Contém vídeos Longos")
         else:
-            st.info("**💎 Regras do Diamante:**\n\n✅ Idade Livre\n✅ Menos de 1k Subs\n✅ Entre 1 e 6 Vídeos\n✅ Média de Views > 10.000")
+            st.info("**💎 Regras do Diamante:**\n\n✅ Idade Livre\n✅ Menos de 1k Subs\n✅ Entre 1 e 6 Vídeos REAIS\n✅ Média de Views > 10.000\n✅ Proteção contra vídeos apagados")
             
         st.divider()
         if st.button("Terminar Sessão"): st.session_state['logado']=False; st.rerun()
 
-    # ====================================================================
-    # ABA 1: VALIDADOR ABSOLUTO
-    # ====================================================================
+    # ABA 1: VALIDADOR
     if modo == "🏆 Validador Absoluto (Gems)":
         st.markdown("<h1 style='text-align: center; color: #5a4fcf;'>🫐 Validador de Tendências</h1>", unsafe_allow_html=True)
 
@@ -368,12 +377,10 @@ def app_principal():
                         df_rad = pd.DataFrame(radar)
                         st.dataframe(df_rad[['Canal', 'Vídeos', 'Inscritos', 'Link']], column_config={"Link": st.column_config.LinkColumn("Link")}, use_container_width=True, hide_index=True)
 
-    # ====================================================================
-    # ABA 2: CAÇADOR DE DIAMANTES BRUTOS
-    # ====================================================================
+    # ABA 2: DIAMANTES BRUTOS
     else:
         st.markdown("<h1 style='text-align: center; color: #38bdf8;'>💎 Caçador de Diamantes Brutos</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center;'>Ache canais antes deles estourarem. <b>Até 6 vídeos, menos de 1k subs, média absurda de views.</b></p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center;'>Ache canais <b>100% online</b> com apenas 1 a 6 vídeos antes de estourarem.</p>", unsafe_allow_html=True)
 
         with st.form("f_diamante"):
             c1, c2 = st.columns([3, 1])
@@ -383,7 +390,7 @@ def app_principal():
             b = st.form_submit_button("🚀 Escanear Anomalias (Pré-Monetização)")
             
         if b and palavra_chave:
-            with st.status(f"A procurar falhas na Matrix para '{palavra_chave}'...", expanded=True) as status_box:
+            with st.status(f"A investigar vídeos ocultos e reais para '{palavra_chave}'...", expanded=True) as status_box:
                 diamantes, erro = buscar_diamantes_brutos(palavra_chave, k, status_box)
                 
                 if erro:
@@ -393,12 +400,12 @@ def app_principal():
                     status_box.update(label="Escaneamento de Diamantes Concluído!", state="complete", expanded=False)
                     
                     st.divider()
-                    st.markdown(f"<h2 style='color:#38bdf8;'>💎 Anomalias Encontradas (1 a 6 vídeos & > 10k Views/Vídeo)</h2>", unsafe_allow_html=True)
+                    st.markdown(f"<h2 style='color:#38bdf8;'>💎 Anomalias Encontradas (Vídeos Ativos)</h2>", unsafe_allow_html=True)
                     
                     qtd_diamantes = len(diamantes)
                     
                     if qtd_diamantes > 0:
-                        st.success(f"Incrível! Encontrámos {qtd_diamantes} Diamantes Brutos surfando o algoritmo agora mesmo!")
+                        st.success(f"Incrível! Encontrámos {qtd_diamantes} Diamantes Brutos com vídeos que ainda estão no ar!")
                         cols = st.columns(3)
                         for i, r in enumerate(diamantes[:15]): 
                             with cols[i%3]:
@@ -406,13 +413,13 @@ def app_principal():
                                 <div class='gold-card' style='border-color: #38bdf8;'>
                                     <span class='diamond-badge'>🚀 OUTLIER</span>
                                     <h4 style='text-overflow: ellipsis; white-space: nowrap; overflow: hidden;' title='{r['Canal']}'>{r['Canal']}</h4>
-                                    <p style='margin:0;'>📹 <b>{r['Vídeos']} vídeos</b></p>
+                                    <p style='margin:0;'>📹 <b>{r['Vídeos']} vídeos reais</b></p>
                                     <p style='margin:0;'>👥 <b>{r['Inscritos']:,} Subs</b></p>
                                     <p style='margin:0; color:#eab308; font-weight:bold;'>🔥 {r['Média Views']:,} Views / Vídeo</p>
                                     <a href='{r['Link']}' target='_blank' class='visit-btn' style='border-color:#38bdf8; color:#38bdf8;'>Espionar Canal ↗</a>
                                 </div>""", unsafe_allow_html=True)
                     else:
-                        st.error(f"Nenhum canal anômalo (1 a 6 vídeos, < 1k subs, e média extrema de views) encontrado para '{palavra_chave}'. O algoritmo do YouTube ainda não abriu as portas para novatos nesse exato termo.")
+                        st.error(f"Nenhum canal anómalo válido encontrado. Alguns canais fantasmas (com vídeos apagados) foram filtrados e removidos com sucesso.")
 
 if st.session_state['logado']: app_principal()
 else: tela_login()
